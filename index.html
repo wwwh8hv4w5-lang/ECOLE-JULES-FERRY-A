@@ -10,14 +10,16 @@
   #c{position:fixed;inset:0;width:100%;height:100%;display:block}
   #zone{position:fixed;inset:0;touch-action:none}
   #lieu{position:fixed;left:50%;top:max(14px,env(safe-area-inset-top));transform:translateX(-50%);padding:8px 18px;border-radius:999px;background:rgba(20,28,40,.55);color:#fff;font-size:15px;font-weight:600;letter-spacing:.2px;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);pointer-events:none;white-space:nowrap}
-  #lieu.flash{animation:fl .9s ease}
+  #lieu.flash{animation:fl .9s ease} #lieu.flash2{animation:fl2 .9s ease}
   @media (max-width:700px){#lieu{top:auto;bottom:max(64px,calc(env(safe-area-inset-bottom) + 56px));font-size:14px;max-width:80vw;overflow:hidden;text-overflow:ellipsis}}
   @keyframes fl{0%{background:rgba(255,213,79,.85);color:#222}100%{background:rgba(20,28,40,.55);color:#fff}}
+  @keyframes fl2{0%{background:rgba(255,213,79,.85);color:#222}100%{background:rgba(20,28,40,.55);color:#fff}}
   #barre{position:fixed;right:max(10px,env(safe-area-inset-right));top:max(10px,env(safe-area-inset-top));display:flex;flex-direction:column;gap:7px;align-items:flex-end}
   #barre button{border:0;border-radius:12px;padding:9px 13px;background:rgba(20,28,40,.6);color:#fff;font-size:14px;font-weight:600;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);cursor:pointer}
   #barre button:active{background:rgba(255,213,79,.85);color:#222}
   #bas{position:fixed;left:max(10px,env(safe-area-inset-left));bottom:max(10px,env(safe-area-inset-bottom));display:flex;gap:7px}
   #bas button,#padInfo{border:0;border-radius:12px;padding:8px 11px;background:rgba(20,28,40,.5);color:#fff;font-size:13px}
+  #barre button,#bas button{min-height:44px;min-width:44px} #barre button:focus-visible,#bas button:focus-visible,#bPorte:focus-visible,#entrer:focus-visible,#fermerPlan:focus-visible{outline:3px solid #ffd54f;outline-offset:2px}
   #stick{position:fixed;width:120px;height:120px;border-radius:50%;background:rgba(255,255,255,.12);border:2px solid rgba(255,255,255,.35);display:none;pointer-events:none}
   #knob{position:absolute;left:35px;top:35px;width:50px;height:50px;border-radius:50%;background:rgba(255,255,255,.55)}
   #aide{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:min(560px,90vw);max-height:80vh;overflow:auto;padding:22px 26px;border-radius:20px;background:rgba(16,22,32,.92);color:#eef;font-size:15px;line-height:1.5;display:none}
@@ -54,7 +56,7 @@
   <button id="bCloche">🔔 Sonnerie</button>
   <button id="bPlan">🗺️ Plan</button>
 </div>
-<div id="bas"><button id="bAide">❓ Aide</button><button id="bSon">🔊</button><button id="bVoix" title="Voix des personnages">🗣️</button><button id="bGraph">🎨 Auto</button><button id="bPerf">ips</button><span id="padInfo">🎮 0</span></div>
+<div id="bas"><button id="bAide">❓ Aide</button><button id="bSon" aria-label="Couper le son" aria-pressed="false">🔊</button><button id="bVoix" title="Voix des personnages" aria-label="Tester la voix des personnages">🗣️</button><button id="bGraph">🎨 Auto</button><button id="bPerf" aria-label="Afficher les images par seconde" aria-pressed="false">ips</button><span id="padInfo">🎮 0</span></div>
 <div id="aide">
   <h3>Se déplacer</h3>
   <b>iPad</b> : pouce gauche = marcher (pousser loin = courir), pouce droit = regarder.<br>
@@ -4332,6 +4334,7 @@ function createBuilder(A) {
     }
     for (const g of B.textured.values()) {
       const nd = new FSM3D.Node('tex'); nd.pickable = false; const mesh = R.makeMesh(new Float32Array(g.a), { uv: true, tex: g.tex.gl });
+      g.a = [];   // copie envoyée au GPU : le tableau JS est libéré
       mesh.tex = g.tex.gl; mesh.alphaCut = g.alpha ? .5 : 0; mesh.rough = g.tex.rough || .7; mesh.metal = 0;
       nd.addPart(mesh, null, g.col, 30, { cast: !!g.alpha && !g.tex.noCast }); A.add(nd); if (g.layer) (layers[g.layer] = layers[g.layer] || []).push(nd);
     }
@@ -5716,8 +5719,9 @@ const DRAPEAU_SRC = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYE
 
 function ajouterDrapeau(A, pos) {
   const img = new Image();
-  img.onload = () => {
-    const k = Math.min(1, 1024 / Math.max(img.width, img.height)), c = document.createElement('canvas'); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k); const g2 = c.getContext('2d', { willReadFrequently: true }); g2.drawImage(img, 0, 0, c.width, c.height);
+  img.onerror = () => console.warn('[drapeau] image illisible : drapeau ignoré');
+  img.onload = () => { try {
+    const k = Math.min(1, 1024 / Math.max(img.width, img.height)), c = document.createElement('canvas'); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k); const g2 = c.getContext('2d', { willReadFrequently: true }); if (!g2) throw new Error('canvas 2D indisponible'); g2.drawImage(img, 0, 0, c.width, c.height);
     const tex = A.R.texture(g2.getImageData(0, 0, c.width, c.height), { repeat: false }); c.width = c.height = 1, [x, y, z] = pos, w = 3.6, h = 2.4, a = [];
     // deux faces légèrement ondulées (le drapeau flotte vers l'est de la façade)
     const N = 8, P = (i, j, sd) => { const u = i / N, v = j; return [x + .08 + u * w, y - v * h, z + Math.sin(u * 3.2) * .18 * u + sd * .004, u, v]; };
@@ -5725,7 +5729,7 @@ function ajouterDrapeau(A, pos) {
       for (const k of (sd > 0 ? [0, 1, 2, 0, 2, 3] : [0, 2, 1, 0, 3, 2])) { const t = q[k]; a.push(t[0], t[1], t[2], 0, 0, sd, sd > 0 ? t[3] : t[3], t[4]); } }
     const mesh = A.R.makeMesh(new Float32Array(a), { uv: true, tex }); mesh.tex = tex; mesh.alphaCut = 0; mesh.rough = .85;
     const nd = new FSM3D.Node('drapeau'); nd.pickable = false; nd.addPart(mesh, null, [1, 1, 1], 30, { cast: true }); A.add(nd);
-  };
+  } catch (e) { console.warn('[drapeau]', e); } };
   img.src = DRAPEAU_SRC;
 }
 
@@ -7555,27 +7559,34 @@ function ajouterHabitants(A, B, n = 50) {
     fixes.push({ c, x: f.x, z: f.z });
   }
   ECOLE.figurants = fixes;
-  A.onUpdate(dt => { const e = A.camera.fixed.eye; if (!e) return; for (const f of fixes) { const dx = f.x - e[0], dz = f.z - e[2]; if (dx * dx + dz * dz < 32 * 32) f.c.tick(dt); } });
+  let actifs = [], refF = null;   // figurants proches, recalculés seulement quand le joueur s'est déplacé de 4 m
+  A.onUpdate(dt => { const e = A.camera.fixed.eye; if (!e) return; if (!refF || Math.hypot(e[0] - refF[0], e[2] - refF[1]) > 4) { refF = [e[0], e[2]]; actifs = fixes.filter(f => (f.x - e[0]) ** 2 + (f.z - e[2]) ** 2 < 36 * 36); } for (const f of actifs) f.c.tick(dt); });
 
   // ---------- déplacement (chaque image) : suivre le chemin, pauses (regarder autour, téléphoner, discuter)
   const PAUSES = ['Idle_LookAround', 'Phone_Talk', 'Idle', 'Talk'];
+  // LOD de simulation : animation complète < 35 m, ralentie (10 Hz) de 35 à 90 m, suspendue au-delà (non dessinés)
+  const tickLod = (p, dt, d2) => { p.acc = (p.acc || 0) + dt; if (d2 > 90 * 90) { p.acc = 0; return; } if (d2 > 35 * 35 && p.acc < .1) return; p.c.tick(p.acc); p.acc = 0; };
   A.onUpdate(dt => {
+    const e = A.camera.fixed.eye || [0, 0, 0];
     for (const p of gens) {
-      const c = p.c;
-      if (p.arret > 0) { p.arret -= dt; if (p.arret <= 0) c.play(p.marche, { fade: .3 }); c.tick(dt); continue; }
+      const c = p.c, ex = c.pos[0] - e[0], ez = c.pos[2] - e[2], d2 = ex * ex + ez * ez;
+      if (p.arret > 0) { p.arret -= dt; if (p.arret <= 0) c.play(p.marche, { fade: .3 }); tickLod(p, dt, d2); continue; }
       p.prochain -= dt;
-      if (p.prochain <= 0) { p.prochain = 20 + Math.random() * 50; p.arret = 3 + Math.random() * 6; c.play(c.def.morph === 'child' ? 'Child_Play' : PAUSES[Math.floor(Math.random() * PAUSES.length)], { fade: .3 }); c.tick(dt); continue; }
+      if (p.prochain <= 0) { p.prochain = 20 + Math.random() * 50; p.arret = 3 + Math.random() * 6; c.play(c.def.morph === 'child' ? 'Child_Play' : PAUSES[Math.floor(Math.random() * PAUSES.length)], { fade: .3 }); tickLod(p, dt, d2); continue; }
       const t = p.pts[p.i], dx = t[0] - c.pos[0], dz = t[1] - c.pos[2], d = Math.hypot(dx, dz);
       if (d < .3) { p.i++; if (p.i >= p.pts.length) { if (RP) nouvelItineraire(p, Math.random); else p.i = 0; } } else {
         const s = Math.min(d, p.v * dt); c.pos[0] += dx / d * s; c.pos[2] += dz / d * s; c.pos[1] = ECOLE.sol ? ECOLE.sol(c.pos[0], c.pos[2]) : -.1;
         let dy = Math.atan2(dx, dz) - c.yaw; while (dy > Math.PI) dy -= 6.2832; while (dy < -Math.PI) dy += 6.2832; c.yaw += dy * Math.min(1, dt * 6);
       }
-      c.tick(dt);
+      tickLod(p, dt, d2);
     }
   });
 
   // ---------- rendu dans la passe opaque de FSM3D
   const lin = v => v.map(x => Math.pow(x, 2.2)), u = r.mesh.u, fr = new Float32Array(16);
+  // sphère englobante (rayon 1,1 m autour du buste) testée contre les 4 plans latéraux et le plan proche
+  const horsChamp = (m, x, y, z, rs) => { const w = m[3] * x + m[7] * y + m[11] * z + m[15]; if (w < -rs) return true;
+    for (const [a, sg] of [[0, 1], [0, -1], [1, 1], [1, -1]]) { const nx = sg * m[a] - m[3], ny = sg * m[a + 4] - m[7], nz = sg * m[a + 8] - m[11], v = sg * (m[a] * x + m[a + 4] * y + m[a + 8] * z + m[a + 12]) - w; if (v > rs * Math.hypot(nx, ny, nz)) return true; } return false; };
   A.onAfterOpaque((vpj, eye, env) => {
     if (!gens.length && !fixes.length && !ECOLE.patrouilles) return;
     gl.useProgram(r.mesh.p);
@@ -7590,15 +7601,13 @@ function ajouterHabitants(A, B, n = 50) {
     gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL); gl.depthMask(true); gl.disable(gl.BLEND); gl.enable(gl.CULL_FACE); gl.cullFace(gl.BACK);
     for (const p of gens) {
       const c = p.c, dx = c.pos[0] - eye[0], dz = c.pos[2] - eye[2], d2 = dx * dx + dz * dz; if (d2 > 90 * 90) continue;
-      // hors champ ? (test du point central projeté)
-      const x = c.pos[0], y = c.pos[1] + .9, z = c.pos[2], w = vpj[3] * x + vpj[7] * y + vpj[11] * z + vpj[15]; if (w < -1) continue;
-      const sx = (vpj[0] * x + vpj[4] * y + vpj[8] * z + vpj[12]) / Math.max(w, .1); if (Math.abs(sx) > 1.4 && d2 > 9) continue;
+      // hors champ ? (sphère englobante)
+      if (horsChamp(vpj, c.pos[0], c.pos[1] + .9, c.pos[2], 1.1)) continue;
       c.pose(); c.draw(r);
     }
     for (const f of fixes) {
       const c = f.c, dx = f.x - eye[0], dz = f.z - eye[2], d2 = dx * dx + dz * dz; if (d2 > 40 * 40) continue;
-      const x = f.x, y = c.pos[1] + .9, z = f.z, w = vpj[3] * x + vpj[7] * y + vpj[11] * z + vpj[15]; if (w < -1) continue;
-      const sx = (vpj[0] * x + vpj[4] * y + vpj[8] * z + vpj[12]) / Math.max(w, .1); if (Math.abs(sx) > 1.4 && d2 > 9) continue;
+      if (horsChamp(vpj, f.x, c.pos[1] + .9, f.z, 1.1)) continue;
       c.pose(); c.draw(r);
     }
     if (ECOLE.patrouilles) ECOLE.patrouilles.dessiner(r, eye, vpj);
@@ -7721,10 +7730,13 @@ function creerPlan(B, P, Z) {
     ctx.font = 'bold 15px Helvetica, Arial'; ctx.textAlign = 'center'; ctx.lineWidth = 4; ctx.strokeStyle = '#fff'; ctx.strokeText('toi', X, Y - 30); ctx.fillStyle = '#8e1c1c'; ctx.fillText('toi', X, Y - 30);
     if (Z) { const z = Z.info[Z.de(P.x, P.z)], t = 'Tu es en zone ' + z.n + ' · ' + z.nom; ctx.font = 'bold 16px Helvetica, Arial'; const w = ctx.measureText(t).width + 36; ctx.fillStyle = z.col; ctx.beginPath(); ctx.roundRect(vw / 2 - w / 2, 14, w, 36, 18); ctx.fill(); ctx.fillStyle = '#fff'; ctx.fillText(t, vw / 2, 37); }
     ctx.fillStyle = 'rgba(16,22,32,.8)'; ctx.beginPath(); ctx.roundRect(vw / 2 - 210, vh - 46, 420, 34, 17); ctx.fill(); ctx.fillStyle = '#fff'; ctx.font = '14px Helvetica, Arial';
-    ctx.fillText(zoom ? 'Toucher : plan entier · 🗺️ ou P : fermer' : 'Toucher : zoom sur toi · 🗺️ ou P : fermer', vw / 2, vh - 24);
+    ctx.fillText(zoom ? 'Toucher : plan entier · ✕, 🗺️ ou P : fermer' : 'Toucher : zoom sur toi · ✕, 🗺️ ou P : fermer', vw / 2, vh - 24);
   };
   vue.addEventListener('pointerdown', e => { zoom = !zoom; e.preventDefault(); e.stopPropagation(); });
-  const plan = { carte, basculer: () => { ouvert = !ouvert; st.display = ouvert ? 'block' : 'none'; }, zoomer: () => { zoom = !zoom; }, ouvert: () => ouvert, dessiner };
+  const fermer = document.createElement('button'); fermer.id = 'fermerPlan'; fermer.type = 'button'; fermer.textContent = '✕ Fermer'; fermer.setAttribute('aria-label', 'Fermer le plan'); document.body.appendChild(fermer);
+  Object.assign(fermer.style, { position: 'fixed', top: 'max(12px, env(safe-area-inset-top))', right: 'max(12px, env(safe-area-inset-right))', minWidth: '48px', minHeight: '48px', padding: '0 18px', border: '0', borderRadius: '24px', background: 'rgba(214,40,40,.92)', color: '#fff', font: '600 17px Helvetica, Arial, sans-serif', zIndex: 31, display: 'none', cursor: 'pointer', touchAction: 'manipulation' });
+  fermer.addEventListener('pointerdown', e => e.stopPropagation()); fermer.addEventListener('click', e => { e.stopPropagation(); if (ouvert) plan.basculer(); });
+  const plan = { carte, basculer: () => { ouvert = !ouvert; st.display = ouvert ? 'block' : 'none'; fermer.style.display = ouvert ? 'block' : 'none'; }, zoomer: () => { zoom = !zoom; }, ouvert: () => ouvert, dessiner };
   return plan;
 }
 
@@ -8076,7 +8088,7 @@ let BAT_POLY = null;
 // boîte de collision orientée, approchée par des carrés alignés (la grille de collisions ne connaît que des boîtes droites)
 function solideOriente(B, cx, cz, sx, sz, yaw, y0 = 0, y1 = 1.2) {
   const c = Math.cos(yaw), s = Math.sin(yaw), ax = [c, -s], az = [s, c];   // axes locaux x (largeur) et z (profondeur) de B.obox
-  const lg = Math.max(sx, sz), ct = Math.min(sx, sz), u = sx >= sz ? ax : az, n = Math.max(1, Math.ceil(lg / ct)), h = ct / 2;
+  const lg = Math.max(sx, sz), ct = Math.min(sx, sz), u = sx >= sz ? ax : az, h = ct / 2 / (Math.abs(c) + Math.abs(s)), n = Math.max(1, Math.ceil(lg / (2 * h)));   // carrés réduits en diagonale : ils restent dans l'emprise réelle
   for (let k = 0; k < n; k++) { const t = -lg / 2 + (k + .5) * lg / n, x = cx + u[0] * t, z = cz + u[1] * t; B.solid(x - h, z - h, x + h, z + h, y0, y1); }
 }
 // immeuble (indice OSM) qui contient un point, ou -1
@@ -8886,7 +8898,9 @@ function portesCommerces(A, B, T) {
     nd.pos = [o.hinge[0], o.y, o.hinge[1]]; nd.rot = [0, th, 0]; A.add(nd);
     const fin = [o.hinge[0] - o.rx * o.lw, o.hinge[1] - o.rz * o.lw];
     const p = Object.assign({ nd, th, sgn, ouv: o.ouv0 || 0, cible: o.ouv0 || 0, loin: 0, mur: [o.hinge[0], o.hinge[1], fin[0], fin[1]] }, o); P.push(p); poser(p); return p; };
-  const poser = p => { const k = p.ouv * p.ouv * (3 - 2 * p.ouv); p.nd.rot[1] = p.th + p.sgn * k * 1.5; };
+  const poser = p => { const k = p.ouv * p.ouv * (3 - 2 * p.ouv), a = p.sgn * k * 1.5; p.nd.rot[1] = p.th + a;
+    // segment de collision = vantail réel (même rotation que le rendu)
+    const vx = -p.rx * p.lw, vz = -p.rz * p.lw, ca = Math.cos(a), sa = Math.sin(a); p.mur = [p.hinge[0], p.hinge[1], p.hinge[0] + vx * ca + vz * sa, p.hinge[1] - vx * sa + vz * ca]; };
   // ---- commerces
   for (const c of (B.osm.chantiers || [])) { if (!c.devanture || c.retour || !c.devanture.salle) continue;
     const dv = c.devanture, d = DEVANTURES[c.nom], { cx0, cz0, nx, nz, rx, rz, sDoor } = dv, at = (s, dd) => [cx0 + rx * s + nx * dd, cz0 + rz * s + nz * dd];
@@ -8898,13 +8912,14 @@ function portesCommerces(A, B, T) {
   // ---- collisions : une porte fermée bloque le passage
   const G = new Map(), gk = (i, j) => i + ',' + j; for (const p of P) { const i = Math.floor(p.centre[0] / 4), j = Math.floor(p.centre[1] / 4); (G.get(gk(i, j)) || G.set(gk(i, j), []).get(gk(i, j))).push(p); }
   const proches = (x, z) => { const o = [], i0 = Math.floor(x / 4), j0 = Math.floor(z / 4); for (let i = i0 - 1; i <= i0 + 1; i++) for (let j = j0 - 1; j <= j0 + 1; j++) for (const p of G.get(gk(i, j)) || []) o.push(p); return o; };
-  ECOLE.mursPortes = (x, z) => proches(x, z).filter(p => p.ouv < .4).map(p => p.mur);
+  ECOLE.mursPortes = (x, z) => proches(x, z).map(p => p.mur);   // le vantail bloque dans toutes ses positions
   // ---- interaction
   const bouton = document.getElementById('bPorte'); let visee = null;
-  const action = () => { if (!visee) return; const p = visee; if (!p.ouvrable) { if (typeof VOIX !== 'undefined') VOIX.dire("C'est fermé à clé.", { perso: 'narrateur', qui: '🔒', genre: 'm', vol: .8 }); return; } p.cible = p.cible > .5 ? 0 : 1; p.loin = 0; son(p.cible); };
+  const signal = (badge, txt) => { const zb = document.getElementById('zoneBan'); if (!zb) return; zb.textContent = ''; const b = document.createElement('b'); b.style.background = '#78481e'; b.textContent = badge; const sp = document.createElement('span'); sp.textContent = txt; zb.append(b, sp); zb.classList.add('on'); clearTimeout(signal.t); signal.t = setTimeout(() => zb.classList.remove('on'), 1400); };
+  const action = () => { if (!visee) return; const p = visee; if (!p.ouvrable) { signal('🔒', 'Porte verrouillée'); if (typeof VOIX !== 'undefined') VOIX.dire("C'est fermé à clé.", { perso: 'narrateur', qui: '🔒', genre: 'm', vol: .8 }); return; } p.cible = p.cible > .5 ? 0 : 1; p.loin = 0; son(p.cible); signal('🚪', p.cible ? 'Porte ouverte' : 'Porte fermée'); };
   ECOLE.ouvrirPorte = action;
   if (bouton) bouton.onclick = e => { e.stopPropagation(); action(); };
-  addEventListener('keydown', e => { if ((e.key === 'e' || e.key === 'E' || e.key === 'Enter') && !e.repeat) action(); });
+  addEventListener('keydown', e => { const tg = e.target; if (tg && (/^(INPUT|TEXTAREA|SELECT|BUTTON)$/.test(tg.tagName) || tg.isContentEditable)) return; if ((e.key === 'e' || e.key === 'E' || e.key === 'Enter') && !e.repeat) action(); });
   let ctx = null; const son = ouvre => { try { ctx = ctx || new (window.AudioContext || window.webkitAudioContext)(); const t = ctx.currentTime, o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'triangle'; o.frequency.setValueAtTime(ouvre ? 180 : 120, t); o.frequency.exponentialRampToValueAtTime(ouvre ? 90 : 60, t + .18); g.gain.setValueAtTime(.12, t); g.gain.exponentialRampToValueAtTime(.001, t + .22); o.connect(g).connect(ctx.destination); o.start(t); o.stop(t + .25); } catch (e) {} };
   let padAvant = false;
   A.onUpdate(dt => { dt = Math.min(dt, .1); const e = A.camera.fixed.eye; if (!e) return;
@@ -8994,11 +9009,12 @@ function creerPatrouilles(A, B, pack, r) {
   const plusProche = (x, z) => { let bi = 0, bd = 1e9; N.forEach((p, i) => { if (comp[i] !== grande) return; const d = Math.hypot(p[0] - x, p[1] - z) + (coupe([x, z], p) ? 50 : 0); if (d < bd) { bd = d; bi = i; } }); return bi; };
   const dijkstra = (a, b) => { const dist = new Float64Array(N.length).fill(1e18), prev = new Int32Array(N.length).fill(-1), via = []; dist[a] = 0; const Q = [[0, a]];
     while (Q.length) { Q.sort((p, q) => p[0] - q[0]); const [d, u] = Q.shift(); if (u === b) break; if (d > dist[u]) continue; for (const [v, L, rd] of adj[u]) { const nd = d + L * (rd.l > 0 && rd.w > 9 ? 1.15 : 1); if (nd < dist[v]) { dist[v] = nd; prev[v] = u; via[v] = rd; Q.push([nd, v]); } } }
+    if (dist[b] >= 1e18) return null;   // inaccessible : pas de chemin partiel
     const path = []; for (let u = b; u >= 0; u = prev[u]) { path.push([u, via[u]]); if (u === a) break; } return path.reverse(); };
   // chemin entre deux points : par le graphe, décalé sur le trottoir de droite (ou l'axe des voies piétonnes)
   const RP = ECOLE.pietons && ECOLE.pietons.n > 100 ? ECOLE.pietons : null;
-  const trajet = (x0, z0, x1, z1) => (RP && RP.trajet(x0, z0, x1, z1)) || trajetRues(x0, z0, x1, z1);   // par les trottoirs et les passages piétons
-  const trajetRues = (x0, z0, x1, z1) => { const a = plusProche(x0, z0), b = plusProche(x1, z1), P = dijkstra(a, b), out = [[x0, z0]];
+  const trajet = (x0, z0, x1, z1) => (RP && RP.trajet(x0, z0, x1, z1)) || trajetRues(x0, z0, x1, z1) || (console.warn('[patrouilles] trajet inaccessible', Math.round(x0), Math.round(z0), '→', Math.round(x1), Math.round(z1)), [[x0, z0], [x1, z1]]);   // par les trottoirs et les passages piétons
+  const trajetRues = (x0, z0, x1, z1) => { const a = plusProche(x0, z0), b = plusProche(x1, z1), P = dijkstra(a, b), out = [[x0, z0]]; if (!P) return null;
     for (let i = 0; i < P.length; i++) { const [u] = P[i], rd = (P[i + 1] || P[i])[1]; const p = N[u], q = N[(P[i + 1] || P[i - 1] || P[i])[0]];
       let dx = q[0] - p[0], dz = q[1] - p[1]; if (!P[i + 1]) { dx = -dx; dz = -dz; } const L = Math.hypot(dx, dz) || 1, nx = -dz / L, nz = dx / L;
       const offs = rd && rd.l > 0 && rd.w > 4.5 ? [rd.w / 2 + 2.0, rd.w / 2 + 1.6, rd.w / 2 + 2.6, rd.w / 2 + 1.2] : [0, .8, -.8];
@@ -9018,8 +9034,8 @@ function creerPatrouilles(A, B, pack, r) {
   ].map(L => L.map(n => n === 'Mairie' ? mv : (shop(n) ? Object.assign(devant(shop(n)), { halte: true }) : null)).filter(Boolean).filter(p => !RP || RP.comp[RP.plusProche(p.x, p.z, { max: 12 })] === RP.taille.indexOf(Math.max(...RP.taille))).filter(p => N.some((q, i) => comp[i] === grande && Math.hypot(q[0] - p.x, q[1] - p.z) < 25 && !coupe([p.x, p.z], q))));   // seulement des haltes accessibles depuis la rue
   const pause = (pts, i) => i % 3 === 2;   // une pause discussion toutes les trois haltes, en plus de la mairie
   // ---------------------------------------------------------------- répliques : jamais deux fois la même (mémoire gardée d'une partie à l'autre)
-  let DITS = { c: [], b: [], i: [], e: [], r: [] }; try { DITS = Object.assign(DITS, JSON.parse(localStorage.getItem('ecole-patrouille-dits') || '{}')); } catch (e) {}
-  const tirer = (pool, cle) => { if (!pool || !pool.length) return null; if (!DITS[cle]) DITS[cle] = []; let dejà = new Set(DITS[cle]); if (dejà.size >= pool.length) { DITS[cle] = []; dejà = new Set(); }   // tout entendu : nouveau cycle
+  let DITS = { c: [], b: [], i: [], e: [], r: [] }; try { const o = JSON.parse(localStorage.getItem('ecole-patrouille-dits') || '{}'); if (o && typeof o === 'object') for (const k of Object.keys(DITS)) if (Array.isArray(o[k])) DITS[k] = o[k].filter(n => Number.isInteger(n) && n >= 0); } catch (e) {}   // seuls des tableaux d'indices entiers sont repris
+  const tirer = (pool, cle) => { if (!pool || !pool.length) return null; if (!Array.isArray(DITS[cle])) DITS[cle] = []; DITS[cle] = DITS[cle].filter(i => Number.isInteger(i) && i >= 0 && i < pool.length); let dejà = new Set(DITS[cle]); if (dejà.size >= pool.length) { DITS[cle] = []; dejà = new Set(); }   // tout entendu : nouveau cycle
     const libres = []; for (let i = 0; i < pool.length; i++) if (!dejà.has(i)) libres.push(i); const i = libres[Math.floor(Math.random() * libres.length)]; DITS[cle].push(i);
     try { localStorage.setItem('ecole-patrouille-dits', JSON.stringify(DITS)); } catch (e) {} return pool[i]; };
   const VOIXP = [{ pitch: .96, rate: 1.0 }, { pitch: 1.06, rate: 1.04 }, { pitch: .88, rate: .96 }, { pitch: 1.02, rate: .98 }, { pitch: 1.1, rate: 1.03 }, { pitch: .92, rate: 1.01 }];
@@ -9080,13 +9096,14 @@ function creerPatrouilles(A, B, pack, r) {
   const majPoste = (G, dt) => { const ag = G.membres[0], q = G.poste; if (G.gel) return; G.cd -= dt; G.t += dt;
     const eye = A.camera.fixed.eye, dJ = eye ? Math.hypot(eye[0] - ag.pos[0], eye[2] - ag.pos[2]) : 99;
     if (G.etat !== 'rencontre' && eye && G.cd <= 0 && cdGlobal <= 0 && dJ < 3.2 && eye[1] < ag.pos[1] + 3) { const txt = tirer(typeof CONSEILS !== 'undefined' ? CONSEILS : null, 'c');
-      if (txt) { G.avant = { etat: 'poste', t: 0 }; G.etat = 'rencontre'; G.t = 0; G.orateur = ag; G.duree = 2.2 + txt.length * .062; G.cd = 45; cdGlobal = 12; parler(ag, txt, Math.max(.35, ecoute(ag)), ms => { G.duree = Math.max(G.duree, ms / 1000 * .85); }); } }
+      if (txt) { G.avant = { etat: 'poste', t: 0 }; G.etat = 'rencontre'; G.t = 0; G.orateur = ag; G.duree = 2.2 + txt.length * .062; G.cd = 45; cdGlobal = 12; const idR = G.idR = (G.idR || 0) + 1; parler(ag, txt, Math.max(.35, ecoute(ag)), ms => { if (G.etat === 'rencontre' && G.idR === idR) G.duree = Math.max(G.duree, ms / 1000 * .85); }); } }
     if (G.etat === 'rencontre') { tourner(ag, Math.atan2(eye[0] - ag.pos[0], eye[2] - ag.pos[2]), dt, 3); jouer(ag, G.t < 1.1 ? 'Salute' : 'Talk'); if (G.t > G.duree) { G.etat = 'poste'; G.t = 0; } return; }
     // de retour au poste (après une intervention) : il se replace
     const dx = q.x - ag.pos[0], dz = q.z - ag.pos[2], d = Math.hypot(dx, dz); if (d > .05) { const v = Math.min(1.2 * dt, d); ag.pos[0] += dx / d * v; ag.pos[2] += dz / d * v; ag.pos[1] = sol(ag.pos[0], ag.pos[2]) + .01; }
     // regard : la chaussée, ou le joueur quand il passe à proximité
     tourner(ag, eye && dJ < 10 ? Math.atan2(eye[0] - ag.pos[0], eye[2] - ag.pos[2]) : q.yaw + Math.sin(G.t * .21 + ag.id) * .5, dt, 1.2);
     G.prochain -= dt; if (G.prochain <= 0) { const r = Math.random(); jouer(ag, r < .5 ? 'Idle' : r < .82 ? 'Idle_LookAround' : r < .93 ? 'Radio_Talk' : 'Write_Notes'); G.prochain = ag.clip === 'Idle' ? 6 + Math.random() * 8 : 4 + Math.random() * 3; } };
+  const LAT = [[-.75, -1.5], [.75, -1.5]], SUIVEURS = [0, 0];   // les deux autres, côte à côte derrière le chef de patrouille
   const majGroupe = (G, dt) => { if (G.fixe) return majPoste(G, dt); const e = G.etapes[G.k], [m0, m1, m2] = G.membres;
     if (G.gel) { const c = INT.ag; for (const ag of G.membres) if (ag !== c) { if (c) tourner(ag, Math.atan2(c.pos[0] - ag.pos[0], c.pos[2] - ag.pos[2]), dt, 2.5); jouer(ag, 'Idle'); } return; }
     G.cd -= dt;
@@ -9094,14 +9111,14 @@ function creerPatrouilles(A, B, pack, r) {
     const eye = A.camera.fixed.eye;
     if (G.etat !== 'rencontre' && eye && G.cd <= 0 && cdGlobal <= 0 && eye[1] < m0.pos[1] + 3) { let best = null, bd = 3.4; for (const ag of G.membres) { const d = Math.hypot(eye[0] - ag.pos[0], eye[2] - ag.pos[2]); if (d < bd) { bd = d; best = ag; } }
       if (best) { const txt = tirer(typeof CONSEILS !== 'undefined' ? CONSEILS : null, 'c'); if (txt) { G.avant = { etat: G.etat, t: G.t }; G.etat = 'rencontre'; G.t = 0; G.orateur = best; G.duree = 2.2 + txt.length * .062; G.cd = 40; cdGlobal = 12;
-          parler(best, txt, Math.max(.35, ecoute(best)), ms => { G.duree = Math.max(G.duree, ms / 1000 * .85); }); } } }
+          const idR = G.idR = (G.idR || 0) + 1; parler(best, txt, Math.max(.35, ecoute(best)), ms => { if (G.etat === 'rencontre' && G.idR === idR) G.duree = Math.max(G.duree, ms / 1000 * .85); }); } } }
     if (G.etat === 'rencontre') { G.t += dt; for (const ag of G.membres) { tourner(ag, Math.atan2(eye[0] - ag.pos[0], eye[2] - ag.pos[2]), dt, 3); jouer(ag, ag === G.orateur ? (G.t < 1.1 ? 'Salute' : 'Talk') : 'Idle'); }
       if (G.t > G.duree) { G.etat = G.avant.etat; G.t = G.avant.t; } return; }
     if (G.etat === 'marche') {
       G.s += VIT * dt; const fin = G.s >= e.L;
       const [x, z, a] = surChemin(e.chemin, Math.min(G.s, e.L)); place(m0, x, z, a, dt);
-      const lat = [[-.75, -1.5], [.75, -1.5]];   // les deux autres, côte à côte derrière le chef de patrouille
-      [m1, m2].forEach((ag, i) => { const [bx, bz, ba] = surChemin(e.chemin, Math.max(0, G.s - 1.5)), ox = Math.cos(ba) * lat[i][0], oz = -Math.sin(ba) * lat[i][0]; let x2 = bx + ox, z2 = bz + oz; if (!libreP(x2, z2) || coupe([bx, bz], [x2, z2]) || ch(x2, z2) && !(RP && RP.surPassage(x2, z2, 0))) { const [cx, cz] = surChemin(e.chemin, Math.max(0, G.s - 1.5 - i * 1.4)); x2 = cx; z2 = cz; } place(ag, x2, z2, ba, dt); });
+      SUIVEURS[0] = m1; SUIVEURS[1] = m2;
+      for (let i = 0; i < 2; i++) { const ag = SUIVEURS[i]; const [bx, bz, ba] = surChemin(e.chemin, Math.max(0, G.s - 1.5)), ox = Math.cos(ba) * LAT[i][0], oz = -Math.sin(ba) * LAT[i][0]; let x2 = bx + ox, z2 = bz + oz; if (!libreP(x2, z2) || coupe([bx, bz], [x2, z2]) || ch(x2, z2) && !(RP && RP.surPassage(x2, z2, 0))) { const [cx, cz] = surChemin(e.chemin, Math.max(0, G.s - 1.5 - i * 1.4)); x2 = cx; z2 = cz; } place(ag, x2, z2, ba, dt); }
       for (const ag of G.membres) jouer(ag, 'Patrol_Walk');
       if (fin) { const c = e.cible; G.nHaltes++; G.etat = c.pause || (c.halte && pause(null, G.nHaltes)) ? 'pause' : 'halte'; G.t = 0; G.duree = G.etat === 'pause' ? 14 + Math.random() * 10 : 7 + Math.random() * 6; G.cible = c; G.role = Math.floor(Math.random() * 3); }
     } else {
@@ -9114,7 +9131,7 @@ function creerPatrouilles(A, B, pack, r) {
         G.membres.forEach((ag, i) => { tourner(ag, Math.atan2(cx - ag.pos[0], cz - ag.pos[2]), dt, 2.5); const cyc = Math.floor((G.t + i * 2.3) / 4.5) % 3; jouer(ag, (cyc + i) % 3 === 0 ? ('Idle') : (cyc + i) % 3 === 1 ? 'Talk' : (i === 0 && G.t > G.duree * .6 ? 'Radio_Talk' : 'Talk')); });
         if (G.t > G.duree - 1.7 && !G.salut) { G.salut = true; for (const ag of G.membres) jouer(ag, 'Salute'); }
         // une blague entre collègues, seulement si le joueur est assez près pour l'entendre
-        if (!G.blague && G.t > 1.5 && ecoute(m0) > .25 && typeof BLAGUES !== 'undefined' && (typeof VOIX !== 'undefined' && VOIX) && !VOIX.occupee()) { const bl = tirer(BLAGUES, 'b'); if (bl) { G.blague = true; const ordre = [0, 1, 2].sort(() => Math.random() - .5), [a, b, c] = ordre.map(i => G.membres[i]);
+        if (!G.blague && G.t > 1.5 && ecoute(m0) > .25 && typeof BLAGUES !== 'undefined' && (typeof VOIX !== 'undefined' && VOIX) && !VOIX.occupee()) { const bl = tirer(BLAGUES, 'b'); if (bl) { G.blague = true; const ordre = [0, 1, 2]; for (let i = 2; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)), t = ordre[i]; ordre[i] = ordre[j]; ordre[j] = t; } const [a, b, c] = ordre.map(i => G.membres[i]);
             let total = 0; total += parler(a, bl[0], ecoute(a)); total += parler(b, bl[1], ecoute(b)); total += parler(c, RIRES[Math.floor(Math.random() * RIRES.length)], ecoute(c)); G.duree = Math.max(G.duree, G.t + total / 1000 + 2.5); } }
       }
       if (G.t > G.duree) { G.etat = 'marche'; G.s = 0; G.k = (G.k + 1) % G.etapes.length; G.salut = false; G.blague = false; }
@@ -9161,12 +9178,13 @@ function creerPatrouilles(A, B, pack, r) {
       if (INT.revenu > .8 && d > 1.6) { lecon(ag, P, true); return; }   // le joueur est remonté de lui-même
       if (d > 1.3 && INT.t < 25) { const v = Math.min(3.6, (d - 1.2) / Math.max(dt, 1e-3)); ag.pos[0] += dx / d * v * dt; ag.pos[2] += dz / d * v * dt; solA(); tourner(ag, Math.atan2(dx, dz), dt, 8); jouer(ag, 'Run'); return; }
       const T = dehors ? pointTrottoir(P.x, P.z) : null; if (!T) { lecon(ag, P, true); return; }
-      INT.T = T; INT.etat = 'escorte'; INT.t = 0; P.tenu = { x: T[0], z: T[1], v: 1.25 }; dire(ag, ESCORTES, 'e', 'Viens avec moi, on remonte sur le trottoir.');
+      INT.T = T; INT.etat = 'escorte'; INT.t = 0; INT.dMin = 1e9; INT.tProg = 0; P.tenu = { x: T[0], z: T[1], v: 1.25 }; dire(ag, ESCORTES, 'e', 'Viens avec moi, on remonte sur le trottoir.');
     } else if (INT.etat === 'escorte') {
       const T = INT.T, dx = T[0] - P.x, dz = T[1] - P.z, d = Math.hypot(dx, dz), ux = d > .05 ? dx / d : Math.sin(ag.yaw), uz = d > .05 ? dz / d : Math.cos(ag.yaw);
       const px = P.x + uz * .5 + ux * .95, pz = P.z - ux * .5 + uz * .95;   // juste devant le joueur, légèrement à droite : il le guide (et reste visible)
       ag.pos[0] += (px - ag.pos[0]) * Math.min(1, dt * 6); ag.pos[2] += (pz - ag.pos[2]) * Math.min(1, dt * 6); solA(); tourner(ag, Math.atan2(ux, uz), dt, 6); jouer(ag, d > .25 ? 'Patrol_Walk' : 'Idle');
-      if (d < .25 || INT.t > 12) lecon(ag, P, false);
+      if (d < INT.dMin - .05) { INT.dMin = d; INT.tProg = INT.t; }   // progression vers le trottoir
+      if (d < .25 || INT.t > 12 || INT.t - INT.tProg > 2.5) lecon(ag, P, false);   // bloqué contre un obstacle : leçon tout de suite
     } else if (INT.etat === 'lecon') {
       tourner(ag, Math.atan2(P.x - ag.pos[0], P.z - ag.pos[2]), dt, 4); jouer(ag, INT.t < .6 ? 'Idle' : 'Talk'); if (P.tenu) P.tenu.regard = [ag.pos[0], ag.pos[2]];
       if (INT.t > INT.duree) { P.tenu = null; INT.etat = 'retour'; INT.t = 0; const R2 = INT.retour; INT.chemin = trajet(ag.pos[0], ag.pos[2], R2[0], R2[1]); INT.s = 0; INT.L = longueur(INT.chemin); }
@@ -9178,7 +9196,9 @@ function creerPatrouilles(A, B, pack, r) {
   // ---------------------------------------------------------------- mise à jour et dessin
   // départ : chaque groupe à une étape différente, déjà sur son chemin
   groupes.forEach((G, g) => { if (G.fixe) return; const e = G.etapes[G.k]; G.s = e.L * .3; majGroupe(G, 0); for (const ag of G.membres) { const [x, z, a] = surChemin(e.chemin, G.s); ag.yaw = a; } });
-  A.onUpdate(dt => { dt = Math.min(dt, .1); cdGlobal -= dt; for (const G of groupes) majGroupe(G, dt); majIntervention(dt);
+  A.onUpdate(dt => { dt = Math.min(dt, .1); cdGlobal -= dt; const eyeL = A.camera.fixed.eye;
+    for (const G of groupes) { G.acc = (G.acc || 0) + dt; const m = G.membres[0], loin = eyeL && m && G !== INT.G && Math.hypot(eyeL[0] - m.pos[0], eyeL[2] - m.pos[2]) > 60; if (loin && G.acc < .2) continue; majGroupe(G, G.acc); G.acc = 0; }   // au-delà de 60 m : mise à jour à 5 Hz, temps cumulé conservé
+    majIntervention(dt);
     for (const ag of agents) { ag.t += dt; if (ag.prev) ag.prevT += dt; ag.fade = Math.min(1, ag.fade + dt / .45); } });
   const occ = [];
   return { agents, groupes,
@@ -9588,24 +9608,26 @@ const VOIX = (() => {
   const charger = () => { if (!ok) return; toutes = S.getVoices() || []; fr = toutes.filter(v => /^fr/i.test(v.lang) && !GADGET.test(v.name)); };
   if (ok) { charger(); S.addEventListener ? S.addEventListener('voiceschanged', charger) : (S.onvoiceschanged = charger); setTimeout(charger, 1500); setTimeout(charger, 5000); }
   // voix d'un personnage : choisie au moment où il parle, puis gardée ; personnages différents → voix différentes si possible
-  const voixDe = (perso, genre) => { const v = persos[perso]; if (v && toutes.includes(v)) return v; charger(); if (!fr.length && !toutes.length) return null;
-    const re = genre === 'f' ? FEM : MASC, pool = fr.filter(x => re.test(x.name)), base = pool.length ? pool : fr.length ? fr : toutes;
+  const voixDe = (perso, genre) => { const v = persos[perso]; if (v && toutes.includes(v)) return v; charger(); if (!fr.length) return null;
+    const re = genre === 'f' ? FEM : MASC, pool = fr.filter(x => re.test(x.name)), base = pool.length ? pool : fr;
     const prises = new Set(Object.values(persos)), libre = base.find(x => !prises.has(x)); return (persos[perso] = libre || base[Object.keys(persos).length % base.length]); };
   const nettoyer = t => { t = String(t).replace(/[()«»"“”*_]/g, '').replace(/…/g, '...').replace(/\s+/g, ' ').trim(); if (t.length > 400) { const c = t.slice(0, 400), k = Math.max(c.lastIndexOf('. '), c.lastIndexOf('! '), c.lastIndexOf('? ')); t = k > 100 ? c.slice(0, k + 1) : c; } return t; };
   // sous-titres
   const st = () => document.getElementById('sousTitre');
-  const montrer = (qui, txt, ms) => { const el = st(); if (!el) return; el.innerHTML = (qui ? '<b>' + qui + '</b> ' : '') + txt; el.classList.add('on'); clearTimeout(montrer.t); montrer.t = setTimeout(() => el.classList.remove('on'), ms); };
+  const montrer = (qui, txt, ms) => { const el = st(); if (!el) return 0; el.textContent = ''; if (qui) { const b = document.createElement('b'); b.textContent = qui; el.append(b, ' '); } el.append(String(txt)); el.classList.add('on'); clearTimeout(montrer.t); montrer.t = setTimeout(() => el.classList.remove('on'), ms); return (montrer.k = (montrer.k || 0) + 1); };
+  const cacher = k => { const el = st(); if (el && (k === undefined || k === montrer.k)) { clearTimeout(montrer.t); el.classList.remove('on'); } };
   const suivante = () => { clearTimeout(minuteur); courante = null; if (!file.length) { if ((typeof audio !== 'undefined' && audio) && audio.duck) audio.duck(false); return; } minuteur = setTimeout(pomper, 150); };
   function pomper() {
     if (courante || !file.length) return; const it = file.shift(); courante = it;
     const muet = (typeof audio !== 'undefined' && audio) && audio.estMuet && audio.estMuet(), duree = 1400 + it.texte.length * 75 + 600;
-    montrer(it.qui, it.texte, Math.min(duree, 1400 + it.texte.length * 62));
+    const parle = ok && !muet && it.vol > 0, kST = montrer(it.qui, it.texte, parle ? duree : Math.min(duree, 1400 + it.texte.length * 62));
     if (it.onStart) try { it.onStart(duree); } catch (e) {}
-    if (!ok || muet || it.vol <= 0) { minuteur = setTimeout(suivante, Math.min(duree, 1200 + it.texte.length * 60)); return; }
-    const lancer = () => { try { const u = new SpeechSynthesisUtterance(it.texte), v = voixDe(it.perso, it.genre); if (v) { u.voice = v; u.lang = v.lang; } else u.lang = 'fr-FR';
-        u.pitch = it.pitch || 1; u.rate = it.rate || 1; u.volume = Math.max(0, Math.min(1, it.vol)); u.onend = () => { stat.finies++; if (courante === it) suivante(); }; u.onerror = e => { stat.erreurs++; stat.derniere = e && e.error || 'erreur'; if (courante === it) suivante(); };
-        if ((typeof audio !== 'undefined' && audio) && audio.duck) audio.duck(true); S.speak(u); stat.lancees++; } catch (e) { stat.erreurs++; stat.derniere = String(e); suivante(); }
-      minuteur = setTimeout(suivante, duree); };   // filet : on passe à la suite même sans onend
+    if (!parle) { minuteur = setTimeout(suivante, Math.min(duree, 1200 + it.texte.length * 60)); return; }
+    let fini = false; const finir = annuler => { if (fini) return; fini = true; cacher(kST); if (courante !== it) return; if (annuler) { try { S.cancel(); } catch (e) {} dernierCancel = performance.now(); } suivante(); };   // une seule fin par réplique (onend, onerror ou filet)
+    const lancer = () => { if (fini || courante !== it) return; try { const u = new SpeechSynthesisUtterance(it.texte), v = voixDe(it.perso, it.genre); if (v) { u.voice = v; u.lang = v.lang; } else u.lang = 'fr-FR';
+        u.pitch = it.pitch || 1; u.rate = it.rate || 1; u.volume = Math.max(0, Math.min(1, it.vol)); u.onend = () => { stat.finies++; finir(false); }; u.onerror = e => { stat.erreurs++; stat.derniere = e && e.error || 'erreur'; finir(false); };
+        if ((typeof audio !== 'undefined' && audio) && audio.duck) audio.duck(true); S.speak(u); stat.lancees++; } catch (e) { stat.erreurs++; stat.derniere = String(e); finir(false); return; }
+      minuteur = setTimeout(() => finir(true), duree); };   // filet : on coupe la voix puis on passe à la suite, une seule fois
     if (S.speaking || S.pending) { S.cancel(); dernierCancel = performance.now(); setTimeout(lancer, 150); }
     else if (performance.now() - dernierCancel < 300) setTimeout(lancer, 250); else lancer();
   }
@@ -9614,7 +9636,8 @@ const VOIX = (() => {
   const occupee = () => !!courante || file.length > 0;
   const test = () => { if ((typeof audio !== 'undefined' && audio)) audio.debloquer(); charger(); dire('Bonjour ! Ici la patrouille de Clichy. Tout va bien dans le quartier.', { perso: 'test', qui: 'Test :', genre: 'm' });
     setTimeout(() => montrer('Voix :', `${toutes.length} installées, ${fr.length} françaises · ${stat.lancees} lancées, ${stat.finies} terminées, ${stat.erreurs} en erreur${stat.derniere ? ' (' + stat.derniere + ')' : ''}`, 6000), 4200); };
-  return { dire, occupee, test, stat, voixDe, vider: () => { file = []; if (ok) S.cancel(); dernierCancel = performance.now(); suivante(); } };
+  const vider = () => { file = []; clearTimeout(minuteur); courante = null; if (ok) S.cancel(); dernierCancel = performance.now(); cacher(); suivante(); };
+  return { dire, occupee, test, stat, voixDe, vider, suspendre: vider, reprendre: () => charger() };
 })();
 
 </script>
@@ -9807,18 +9830,21 @@ function construireReseauPieton(B) {
 // 05 · application : démarrage, marche à hauteur d'enfant, vue aérienne, heure, météo,
 //      commandes clavier / tactile / manette PlayStation, son (méthode SPATIALFSMVOICESONG), PerfGuard
 // =====================================================================================
-const ECOLE = { version: '0.1.0' };
-function lancerEcole() {
+const ECOLE = { version: '0.2.0' };
+async function lancerEcole() {
   const canvas = document.getElementById('c'), test = /[?&]test/.test(location.search);
+  if (!canvas) throw new Error('canvas #c introuvable');
+  canvas.addEventListener('webglcontextlost', e => { e.preventDefault(); const er = document.getElementById('erreur'); if (er) { er.textContent = 'Le contexte graphique a été perdu. Recharge la page pour reprendre.'; er.style.display = 'flex'; } });
   // contexte créé ici pour que PerfGuard compte les triangles (FSM3D récupère le même contexte)
   const gl = canvas.getContext('webgl2', { antialias: false, alpha: false, powerPreference: 'high-performance', preserveDrawingBuffer: test });
-  if (!gl) { document.getElementById('erreur').style.display = 'flex'; return; }
+  if (!gl) { const er = document.getElementById('erreur'); if (er) er.style.display = 'flex'; return null; }
   const pg = window.FSMPerfGuard ? FSMPerfGuard.create({ gl, canvas: document.createElement('canvas'), version: 'ecole-' + ECOLE.version }) : null;
   const A = FSM3D.app(canvas, { env: 'couvert', camera: { fov: 70 * Math.PI / 180, near: .06, far: 420 }, autoStart: false, preserve: test, quality: test ? 'haute' : undefined });
-  ECOLE.A = A; window.A = A;
+  ECOLE.A = A;
   const B = createBuilder(A), T = ECOLE.T = schoolTextures(A);
   const t0 = performance.now(), lg = test ? m => console.log('[ecole] ' + m + ' ' + Math.round(performance.now() - t0) + ' ms') : () => {};
-  lg('app'); buildSchool(B, T); lg('ecole'); furnishSchool(B, T); lg('mobilier'); buildUpper(B, T); lg('etages'); buildQuartier(A, B, T); lg('quartier'); ECOLE.chantiers = ajouterChantiers(B, T, creerZones()); lg('chantiers'); ECOLE.arrets = construireArrets(B, T); const LD = construireDevantures(B, T); construireDistributeurs(B, T); ECOLE.entrees = construireEntrees(B, T); lg('devantures'); ECOLE.nSalles = construireInterieurs(B, T, LD); hotelsExterieur(B, T, LD); lg('interieurs'); ECOLE.ambiance = habillerQuartier(B, T); lg('ambiance'); B.build(); lg('build'); ECOLE.nPortes = portesCommerces(A, B, T).length; try { ECOLE.pietons = construireReseauPieton(B); } catch (e) { console.warn('[pietons]', e); } lg('pietons'); if (ECOLE.drapeau && window.ajouterDrapeau) ajouterDrapeau(A, ECOLE.drapeau);
+  const souffle = etape => new Promise(r => { const bt = document.getElementById('entrer'); if (bt && bt.disabled) bt.textContent = 'Construction : ' + etape + '…'; let ok = false; const f = () => { if (!ok) { ok = true; r(); } }; requestAnimationFrame(f); setTimeout(f, 60); });   // laisse l'interface respirer entre deux étapes
+  lg('app'); buildSchool(B, T); lg('ecole'); furnishSchool(B, T); lg('mobilier'); buildUpper(B, T); lg('etages'); await souffle('quartier'); buildQuartier(A, B, T); lg('quartier'); await souffle('commerces'); ECOLE.chantiers = ajouterChantiers(B, T, creerZones()); lg('chantiers'); ECOLE.arrets = construireArrets(B, T); const LD = construireDevantures(B, T); construireDistributeurs(B, T); ECOLE.entrees = construireEntrees(B, T); lg('devantures'); await souffle('intérieurs'); ECOLE.nSalles = construireInterieurs(B, T, LD); hotelsExterieur(B, T, LD); lg('interieurs'); ECOLE.ambiance = habillerQuartier(B, T); lg('ambiance'); await souffle('assemblage'); B.build(); lg('build'); await souffle('habitants'); ECOLE.nPortes = portesCommerces(A, B, T).length; try { ECOLE.pietons = construireReseauPieton(B); } catch (e) { console.warn('[pietons]', e); } lg('pietons'); if (ECOLE.drapeau && window.ajouterDrapeau) ajouterDrapeau(A, ECOLE.drapeau);
   ECOLE.B = B;
   // ---------- PerfGuard : qualité et résolution pilotées par la mesure réelle
   // ---------- Graphismes : 4 niveaux manuels (Bas / Moyen / Élevé / Ultra) + Auto (PerfGuard)
@@ -9829,17 +9855,18 @@ function lancerEcole() {
     { nom: 'Élevé', q: 'haute',   res: () => dpr },
     { nom: 'Ultra', q: 'ultra',   res: () => dprU }];
   const QA = ['ultra', 'haute', 'moyenne', 'basse', 'basse'];
-  let graph = -1; try { const g = localStorage.getItem('ecole-graph'); if (g !== null) graph = Math.max(-1, Math.min(3, +g)); } catch (e) {}
+  const remplirBan = (el, col, badge, titre, sous) => { el.textContent = ''; const b = document.createElement('b'); b.style.background = col; b.textContent = badge; const sp = document.createElement('span'), sm = document.createElement('small'); sp.textContent = titre; sm.textContent = sous; sp.appendChild(sm); el.append(b, sp); };
+  let graph = -1; try { const g = localStorage.getItem('ecole-graph'); const n = g === null ? NaN : Number(g); if (Number.isInteger(n) && n >= -1 && n <= 3) graph = n; } catch (e) {}
   if (test) graph = -2;   // tests : qualité imposée par FSM3D
   const bGraph = document.getElementById('bGraph');
   const appliquerAuto = () => { if (pg) { const l = pg.level, L = pg.levels[l]; A.setQuality(QA[l]); A.renderScale = Math.max(.5, dpr * pg.baseRes * L.res); } else { A.autoQuality = true; } };
   const majBouton = () => { if (bGraph) bGraph.textContent = '🎨 ' + (graph >= 0 ? NIVEAUX[graph].nom : 'Auto'); };
   ECOLE.graphismes = n => {   // n : -1 = Auto, 0..3 = Bas..Ultra ; sans argument = niveau suivant
     if (graph === -2) graph = -1;
-    graph = n === undefined ? (graph >= 3 ? -1 : graph + 1) : n;
+    graph = n === undefined ? (graph >= 3 ? -1 : graph + 1) : (Number.isInteger(n) && n >= -1 && n <= 3 ? n : -1);
     try { localStorage.setItem('ecole-graph', graph); } catch (e) {}
     if (graph >= 0) { A.autoQuality = false; const N = NIVEAUX[graph]; A.setQuality(N.q); A.renderScale = N.res(); } else appliquerAuto();
-    majBouton(); const zb = document.getElementById('zoneBan'); if (zb) { zb.innerHTML = '<b style="background:#5a6b8a">🎨</b><span>Graphismes : ' + (graph >= 0 ? NIVEAUX[graph].nom : 'Auto') + '<small>' + (graph >= 0 ? ['ombres et effets coupés, résolution réduite', 'ombres simples, sans occlusion ni rayons', 'ombres douces, occlusion, rayons de soleil', 'tout au maximum, pleine résolution'][graph] : 'ajusté selon la fluidité mesurée') + '</small></span>'; zb.classList.add('on'); clearTimeout(ECOLE._gT); ECOLE._gT = setTimeout(() => zb.classList.remove('on'), 2200); }
+    majBouton(); const zb = document.getElementById('zoneBan'); if (zb) { remplirBan(zb, '#5a6b8a', '🎨', 'Graphismes : ' + (graph >= 0 ? NIVEAUX[graph].nom : 'Auto'), graph >= 0 ? ['ombres et effets coupés, résolution réduite', 'ombres simples, sans occlusion ni rayons', 'ombres douces, occlusion, rayons de soleil', 'tout au maximum, pleine résolution'][graph] : 'ajusté selon la fluidité mesurée'); zb.classList.add('on'); clearTimeout(ECOLE._gT); ECOLE._gT = setTimeout(() => zb.classList.remove('on'), 2200); }
     return graph; };
   ECOLE.NIVEAUX = NIVEAUX;
   if (pg) {
@@ -9912,7 +9939,9 @@ function lancerEcole() {
   // tactile / souris : stick virtuel à gauche, regard à droite (souris : glisser n'importe où)
   const zone = document.getElementById('zone'), stick = document.getElementById('stick'), knob = document.getElementById('knob');
   const pts = new Map();
-  zone.addEventListener('pointerdown', e => { zone.setPointerCapture(e.pointerId); const left = e.pointerType === 'touch' && e.clientX < innerWidth * .45 && P.mode === 'marche';
+  zone.addEventListener('pointerdown', e => { const left = e.pointerType === 'touch' && e.clientX < innerWidth * .45 && P.mode === 'marche';
+    if (e.pointerType === 'touch') { let dejaStick = false, dejaRegard = false; for (const q of pts.values()) { if (q.stick) dejaStick = true; else dejaRegard = true; } if (left ? dejaStick : dejaRegard) { audio.debloquer(); return; } }   // doigts en trop ignorés
+    zone.setPointerCapture(e.pointerId);
     pts.set(e.pointerId, { x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY, stick: left }); if (left) { stick.style.display = 'block'; stick.style.left = (e.clientX - 60) + 'px'; stick.style.top = (e.clientY - 60) + 'px'; knob.style.transform = 'translate(0,0)'; } audio.debloquer(); });
   zone.addEventListener('pointermove', e => { const q = pts.get(e.pointerId); if (!q) return; const dx = e.clientX - q.x, dy = e.clientY - q.y; q.x = e.clientX; q.y = e.clientY;
     if (q.stick) { let sx = e.clientX - q.x0, sy = e.clientY - q.y0; const l = Math.hypot(sx, sy), m = 50; if (l > m) { sx *= m / l; sy *= m / l; } knob.style.transform = `translate(${sx}px,${sy}px)`; ctl.mx = sx / m; ctl.mz = sy / m; ctl.run = l > 46; }
@@ -9951,22 +9980,22 @@ function lancerEcole() {
   ECOLE.vue = vue; ECOLE.coupe = coupe;
   document.getElementById('bHeure').onclick = () => ECOLE.heure(); document.getElementById('bMeteo').onclick = () => ECOLE.meteo();
   document.getElementById('bVue').onclick = vue; document.getElementById('bCoupe').onclick = () => coupe();
-  document.getElementById('bCloche').onclick = () => audio.sonnerie(); document.getElementById('bSon').onclick = () => { audio.muet(); document.getElementById('bSon').textContent = audio.estMuet() ? '🔇' : '🔊'; };
+  document.getElementById('bCloche').onclick = () => audio.sonnerie(); document.getElementById('bSon').onclick = () => { audio.muet(); const bs = document.getElementById('bSon'), m = audio.estMuet(); bs.textContent = m ? '🔇' : '🔊'; bs.setAttribute('aria-pressed', String(m)); bs.setAttribute('aria-label', m ? 'Remettre le son' : 'Couper le son'); };
   document.getElementById('bAide').onclick = () => document.getElementById('aide').classList.toggle('on');
   if (bGraph) bGraph.onclick = () => ECOLE.graphismes();
   { const bv = document.getElementById('bVoix'); if (bv) bv.onclick = () => { if ((typeof VOIX !== 'undefined' && VOIX)) VOIX.test(); }; }
-  document.getElementById('bPerf').onclick = () => { if (pg) { ECOLE.perfOn = !ECOLE.perfOn; pg.overlay(ECOLE.perfOn); } };
+  document.getElementById('bPerf').onclick = () => { if (pg) { ECOLE.perfOn = !ECOLE.perfOn; pg.overlay(ECOLE.perfOn); document.getElementById('bPerf').setAttribute('aria-pressed', String(ECOLE.perfOn)); } };
   // ---------- manette (API Gamepad, disposition standard PS4) — le joueur 1 prend la première
   const pad = { prev: [] };
   const lirePad = () => {
     const gps = navigator.getGamepads ? [...navigator.getGamepads()].filter(Boolean) : []; const g = gps[0]; if (!g) return null;
-    const dz = v => Math.abs(v) < .15 ? 0 : (v - Math.sign(v) * .15) / .85, b = i => g.buttons[i] && g.buttons[i].pressed, edge = i => b(i) && !pad.prev[i];
-    const r = { mx: dz(g.axes[0] || 0), mz: dz(g.axes[1] || 0), lx: dz(g.axes[2] || 0), ly: dz(g.axes[3] || 0), run: b(7) || b(10) || b(6) };
+    const dz2 = (x, y) => { const l = Math.hypot(x, y); if (l < .15) return [0, 0]; const k = (Math.min(1, l) - .15) / .85 / l; return [x * k, y * k]; }, b = i => g.buttons[i] && g.buttons[i].pressed, edge = i => b(i) && !pad.prev[i];   // zone morte radiale
+    const sg = dz2(g.axes[0] || 0, g.axes[1] || 0), sd = dz2(g.axes[2] || 0, g.axes[3] || 0), r = { mx: sg[0], mz: sg[1], lx: sd[0], ly: sd[1], run: b(7) || b(10) || b(6) };
     if (edge(3)) vue(); if (edge(12)) ECOLE.heure(); if (edge(13)) ECOLE.meteo(); if (edge(2)) audio.sonnerie(); if (edge(1) && P.mode === 'aerien') coupe(); if (edge(9)) document.getElementById('aide').classList.toggle('on'); if (edge(8) || edge(17)) ECOLE.plan.basculer(); if (edge(4) && ECOLE.plan.ouvert()) ECOLE.plan.zoomer();
     if (g.buttons.some(x => x.pressed)) audio.debloquer();
     pad.prev = g.buttons.map(x => x.pressed); document.getElementById('padInfo').textContent = '🎮 ' + gps.length; return r;
   };
-  addEventListener('keydown', e => { const k = e.key.toLowerCase(); if (k === 'v' || k === 'tab') { vue(); e.preventDefault(); } if (k === 'h') ECOLE.heure(); if (k === 'm') ECOLE.meteo(); if (k === 'b') audio.sonnerie(); if (k === 'p') ECOLE.plan.basculer(); if (k === 'g') ECOLE.graphismes(); if (k === 'c' && P.mode === 'aerien') coupe(); audio.debloquer(); });
+  addEventListener('keydown', e => { const tg = e.target; if (tg && (/^(INPUT|TEXTAREA|SELECT)$/.test(tg.tagName) || tg.isContentEditable)) return; const k = (e.key || '').toLowerCase(); if (e.repeat && k !== 'shift') return; if (k === 'v') { vue(); e.preventDefault(); } if (k === 'h') ECOLE.heure(); if (k === 'm') ECOLE.meteo(); if (k === 'b') audio.sonnerie(); if (k === 'p') ECOLE.plan.basculer(); if (k === 'g') ECOLE.graphismes(); if (k === 'c' && P.mode === 'aerien') coupe(); audio.debloquer(); });
   // ---------- boucle : déplacement, caméra, lumières, son
   const lieuEl = document.getElementById('lieu'); let lieuPrec = '';
   const cand = [];
@@ -9991,15 +10020,15 @@ function lancerEcole() {
       if (P.tenu) { const T = P.tenu, dx = T.x - P.x, dz = T.z - P.z, d = Math.hypot(dx, dz), v = Math.min(T.v || 0, d / Math.max(dt, 1e-3)); vx = d > .02 ? dx / d * v : 0; vz = d > .02 ? dz / d * v : 0;
         const r = T.regard || (d > .2 ? [T.x, T.z] : null); if (r) { let dy = Math.atan2(-(r[0] - P.x), -(r[1] - P.z)) - P.yaw; while (dy > Math.PI) dy -= 2 * Math.PI; while (dy < -Math.PI) dy += 2 * Math.PI; P.yaw += dy * Math.min(1, dt * 3.5); }
         P.pitch += ((T.pitch ?? -.04) - P.pitch) * Math.min(1, dt * 2.5); }
-      const ox = P.x, oz = P.z; P.x += vx * dt; P.z += vz * dt; collide(P, sol(P.x, P.z)); const d = Math.hypot(P.x - ox, P.z - oz);
+      const ox = P.x, oz = P.z, nPas = Math.min(24, Math.max(1, Math.ceil(Math.hypot(vx * dt, vz * dt) / (RAD * .5)))); for (let k = 0; k < nPas; k++) { P.x += vx * dt / nPas; P.z += vz * dt / nPas; collide(P, sol(P.x, P.z)); } const d = Math.hypot(P.x - ox, P.z - oz);
       P.vitesse = d / Math.max(dt, 1e-4); const target = sol(P.x, P.z); P.y += (target - P.y) * Math.min(1, dt * 14);
       P.bob += d * 5.2; P.pas += d; const L = lieu(P.x, P.z);
       if (P.pas > (run ? .78 : .58)) { P.pas = 0; audio.pas(L.sol, run, L.dedans ? Math.min(1, (L.vol || 60) / 600) : 0); }
       const bobY = Math.sin(P.bob) * .025 * Math.min(1, P.vitesse / 1.5), eye = [P.x, P.y + 1.25 + bobY, P.z];
       A.camera.fixed.eye = eye; A.camera.fixed.look = [eye[0] - Math.sin(P.yaw) * Math.cos(P.pitch) * 10, eye[1] + Math.sin(P.pitch) * 10, eye[2] - Math.cos(P.yaw) * Math.cos(P.pitch) * 10];
       const zk = ZONES.de(P.x, P.z), zi = ZONES.info[zk];
-      if (zk !== zonePrec) { if (zonePrec >= 0) { bandeau.innerHTML = '<b style="background:' + zi.col + '">' + zi.n + '</b><span>Zone ' + zi.n + ' · ' + zi.nom + '<small>' + zi.sous + '</small></span>'; bandeau.classList.add('on'); clearTimeout(banT); banT = setTimeout(() => bandeau.classList.remove('on'), 2600); } zonePrec = zk; lieuPrec = ''; }
-      if (L.n !== lieuPrec) { lieuPrec = L.n; lieuEl.textContent = zi.rond + ' ' + L.n; lieuEl.classList.remove('flash'); void lieuEl.offsetWidth; lieuEl.classList.add('flash'); }
+      if (zk !== zonePrec) { if (zonePrec >= 0) { remplirBan(bandeau, zi.col, zi.n, 'Zone ' + zi.n + ' · ' + zi.nom, zi.sous); bandeau.classList.add('on'); clearTimeout(banT); banT = setTimeout(() => bandeau.classList.remove('on'), 2600); } zonePrec = zk; lieuPrec = ''; }
+      if (L.n !== lieuPrec) { lieuPrec = L.n; lieuEl.textContent = zi.rond + ' ' + L.n; const fA = lieuEl.classList.contains('flash'); lieuEl.classList.toggle('flash', !fA); lieuEl.classList.toggle('flash2', fA); }
       audio.lieu(L, P);
     } else {
       AER.cx += (-mz * -Math.sin(AER.yaw) + mx * Math.cos(AER.yaw)) * dt * 35; AER.cz += (-mz * -Math.cos(AER.yaw) - mx * Math.sin(AER.yaw)) * dt * 35;
@@ -10009,8 +10038,10 @@ function lancerEcole() {
     }
     // lumières : celles de la pièce où l'on se trouve d'abord, puis les plus proches (lampadaires la nuit)
     const eye = A.camera.fixed.eye, nuit = A.nuit(), here = P.mode === 'marche' ? lieu(P.x, P.z).id : null;
-    cand.length = 0; for (const L of B.lights) { if (L.nuit && nuit < .2) continue; const d = Math.hypot(L.p[0] - eye[0], L.p[1] - eye[1], L.p[2] - eye[2]); if (d > 45) continue; cand.push([d - (L.room === here ? 100 : 0), L]); }
-    cand.sort((a, b) => a[0] - b[0]); const nl = Math.min(cand.length, 7);
+    cand.length = 0; for (const L of B.lights) { if (L.nuit && nuit < .2) continue; const d = Math.hypot(L.p[0] - eye[0], L.p[1] - eye[1], L.p[2] - eye[2]); if (d > 45) continue; const sc = d - (L.room === here ? 100 : 0);
+      if (cand.length < 7) cand.push([sc, L]); else if (sc < cand[6][0]) { cand[6][0] = sc; cand[6][1] = L; } else continue;   // 7 meilleures, insertion triée
+      for (let i = cand.length - 1; i > 0 && cand[i][0] < cand[i - 1][0]; i--) { const t = cand[i]; cand[i] = cand[i - 1]; cand[i - 1] = t; } }
+    const nl = cand.length;
     for (let i = 0; i < nl; i++) { const L = cand[i][1]; A.addLight({ p: L.p, c: L.c, i: L.nuit ? L.i * Math.min(1, nuit * 1.5) : L.i, r: L.r, dir: L.nuit ? [0, -1, 0] : undefined, cone: L.nuit ? [.35, .8] : undefined }); }
   });
   lg('boucle');
@@ -10036,16 +10067,16 @@ const audio = (() => {
     revGain = ctx.createGain(); revGain.gain.value = .2; rev.connect(revGain).connect(master);
     const brown = bruit(4, true), blanc = bruit(3, false);
     villeG = boucle(brown, 380, .5); courG = boucle(blanc, 2600, .3, 'bandpass'); pluieG = boucle(blanc, 5200, .4); humG = boucle(brown, 120, 1);
-    garde = setInterval(() => { if (!ctx) return; if (ctx.state !== 'running' && !document.hidden) ctx.resume(); if (window.speechSynthesis && speechSynthesis.paused) speechSynthesis.resume(); }, 1500);
-    document.addEventListener('visibilitychange', () => { if (document.hidden) { ctx.suspend(); if (window.speechSynthesis) speechSynthesis.cancel(); } else ctx.resume(); });
+    garde = setInterval(() => { if (!ctx || document.hidden || ctx.state === 'running') return; const r = ctx.resume(); if (r && r.catch) r.catch(() => {}); }, 1500);   // WebAudio seulement : la voix n'est jamais relancée d'office
+    document.addEventListener('visibilitychange', () => { const V = typeof VOIX !== 'undefined' && VOIX; if (document.hidden) { ctx.suspend(); if (V && V.suspendre) V.suspendre(); else if (window.speechSynthesis) speechSynthesis.cancel(); } else { const r = ctx.resume(); if (r && r.catch) r.catch(() => {}); if (V && V.reprendre) V.reprendre(); } });
     setTimeout(oiseaux, 3000); setTimeout(passage, 5000);
   };
-  const debloquer = () => { if (!ctx) init(); if (ctx.state !== 'running') ctx.resume(); if (window.speechSynthesis && !debloquer.voix) { try { const u = new SpeechSynthesisUtterance(' '); u.volume = 0; speechSynthesis.speak(u); debloquer.voix = true; } catch (e) {} } };
+  const debloquer = () => { if (!ctx) init(); if (ctx.state !== 'running') { const r = ctx.resume(); if (r && r.catch) r.catch(e => console.warn('[audio]', e)); } const geste = !navigator.userActivation || navigator.userActivation.isActive; if (geste && window.speechSynthesis && !debloquer.voix) { try { const u = new SpeechSynthesisUtterance(' '); u.volume = 0; speechSynthesis.speak(u); debloquer.voix = true; } catch (e) {} } };
   const vers = (g, v, t = .6) => { if (g) g.gain.setTargetAtTime(v, ctx.currentTime, t); };
-  let etat = { dehors: 1, rue: 0, dedans: 0 };
-  const lieu = (L, P) => { if (!ctx) return; const dehors = !L.dedans, nuit = window.A ? A.nuit() : 0, dRue = L.auto ? 1 : L.id === 'rue' ? .6 : L.id === 'devant' ? .45 : L.id === 'cour' ? .25 : 0;
+  let etat = { dehors: 1, rue: 0, dedans: 0 }, duckF = 1;
+  const lieu = (L, P) => { if (!ctx) return; const dehors = !L.dedans, nuit = ECOLE.A ? ECOLE.A.nuit() : 0, dRue = L.auto ? 1 : L.id === 'rue' ? .6 : L.id === 'devant' ? .45 : L.id === 'cour' ? .25 : 0;
     vers(villeG, (dehors ? .25 + .45 * dRue : .07) * (1 - nuit * .4)); vers(courG, 0); vers(pluieG, met === 'pluie' ? (dehors ? .22 : .05) : 0); vers(humG, L.dedans ? .05 : 0);
-    vers(revGain, L.id === 'hall' ? .6 : L.dedans ? Math.min(.45, .12 + (L.vol || 50) / 600) : L.id === 'cour' ? .12 : .04, .3); etat = { dehors, rue: dRue }; };
+    vers(revGain, (L.id === 'hall' ? .6 : L.dedans ? Math.min(.45, .12 + (L.vol || 50) / 600) : L.id === 'cour' ? .12 : .04) * duckF, .3); etat = { dehors, rue: dRue }; };
   // pas : rafale de bruit filtrée selon le sol
   const SOLS = { pave: [1900, .9, .08, .45], carrelage: [2600, 1.2, .07, .5], damier: [2800, 1.3, .06, .5], rouge: [2400, 1.1, .07, .45], lino: [900, .7, .06, .35], linoJaune: [900, .7, .06, .35], parquet: [500, 1.6, .09, .5], beton: [1500, 1, .07, .45], bitume: [1700, .6, .09, .4] };
   let blancBuf = null;
@@ -10054,7 +10085,7 @@ const audio = (() => {
     const g = ctx.createGain(); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(v * (run ? 1.3 : .9), t + .006); g.gain.exponentialRampToValueAtTime(.001, t + d * (run ? .8 : 1.2));
     s.connect(fl).connect(g); g.connect(fx); const sd = ctx.createGain(); sd.gain.value = rv; g.connect(sd).connect(rev); s.start(t); s.stop(t + .3); };
   // oiseaux (moineaux) le jour, dehors
-  const oiseaux = () => { if (ctx && !muet && etat.dehors && window.A && A.nuit() < .3 && met !== 'pluie') { const t = ctx.currentTime, n = 2 + Math.floor(Math.random() * 4), f0 = 3200 + Math.random() * 1600;
+  const oiseaux = () => { if (ctx && !muet && etat.dehors && ECOLE.A && ECOLE.A.nuit() < .3 && met !== 'pluie') { const t = ctx.currentTime, n = 2 + Math.floor(Math.random() * 4), f0 = 3200 + Math.random() * 1600;
       for (let i = 0; i < n; i++) { const o = ctx.createOscillator(), g = ctx.createGain(), tt = t + i * .11; o.frequency.setValueAtTime(f0, tt); o.frequency.exponentialRampToValueAtTime(f0 * (1.25 + Math.random() * .3), tt + .06); g.gain.setValueAtTime(0, tt); g.gain.linearRampToValueAtTime(.025, tt + .01); g.gain.exponentialRampToValueAtTime(.0005, tt + .08); o.connect(g).connect(amb); o.start(tt); o.stop(tt + .1); } }
     setTimeout(oiseaux, 2500 + Math.random() * 6000); };
   // voiture qui passe dans la rue (souffle filtré qui monte et redescend)
@@ -10065,8 +10096,8 @@ const audio = (() => {
   // sonnerie d'école moderne : carillon à trois notes, réverbéré
   const sonnerie = () => { debloquer(); if (muet) return; const t = ctx.currentTime + .05;
     [[659.3, 0], [523.3, .45], [784, .9], [659.3, 1.6], [523.3, 2.05], [784, 2.5]].forEach(([f, d]) => { for (const h of [1, 2.01, 3.02]) { const o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'sine'; o.frequency.value = f * h; g.gain.setValueAtTime(0, t + d); g.gain.linearRampToValueAtTime(.12 / h, t + d + .01); g.gain.exponentialRampToValueAtTime(.0008, t + d + 1.3); o.connect(g); g.connect(fx); g.connect(rev); o.start(t + d); o.stop(t + d + 1.4); } });
-    vers(amb, .27, .2); setTimeout(() => vers(amb, .8, 1.2), 3200); };
-  return { debloquer, lieu, pas, sonnerie, duck: on => { if (ctx) vers(amb, on ? .27 : .8, on ? .15 : 1.2); }, meteo: m => { met = m; }, muet: () => { muet = !muet; if (master) master.gain.setTargetAtTime(muet ? 0 : .9, ctx.currentTime, .1); }, estMuet: () => muet };
+    vers(amb, .27, .2); setTimeout(() => vers(amb, .8, 1.2), 4200); };
+  return { debloquer, lieu, pas, sonnerie, duck: on => { duckF = on ? .4 : 1; if (ctx) vers(amb, on ? .27 : .8, on ? .15 : 1.2); }, meteo: m => { met = m; }, muet: () => { muet = !muet; if (master) master.gain.setTargetAtTime(muet ? 0 : .9, ctx.currentTime, .1); }, estMuet: () => muet };
 })();
 
 </script>
@@ -10074,11 +10105,12 @@ const audio = (() => {
 <script>
   const bouton = document.getElementById('entrer');
   setTimeout(() => {
-    try { lancerEcole(); bouton.disabled = false; bouton.textContent = 'Entrer'; }
-    catch (e) { console.error(e); bouton.textContent = 'Erreur : ' + e.message; }
+    lancerEcole().then(() => { if (bouton) { bouton.disabled = false; bouton.textContent = 'Entrer'; } })
+      .catch(e => { console.error(e); if (bouton) bouton.textContent = 'Erreur : ' + e.message; });
   }, 60);
-  bouton.onclick = () => { audio.debloquer(); document.getElementById('accueil').style.display = 'none'; };
-  if (/[?&]test/.test(location.search)) document.getElementById('accueil').style.display = 'none';
+  const accueil = document.getElementById('accueil');
+  if (bouton) bouton.onclick = () => { audio.debloquer(); if (accueil) accueil.style.display = 'none'; };
+  if (/[?&]test/.test(location.search) && accueil) accueil.style.display = 'none';
 </script>
 </body>
 </html>
