@@ -5296,7 +5296,7 @@ const droite = (nx, nz) => [nz, -nx];
 // fenêtres à fronton, frise LIBERTÉ ÉGALITÉ FRATERNITÉ, lucarne-fronton « MAIRIE », campanile à horloge et lanterne octogonale
 function buildMairieDecor(B, T, b, edges, H, top) {
   const G = FSM3D.geo, CYLH = G.cylinder(18), stone = [.92, .87, .74], stone2 = [.84, .78, .65], ombre = [.7, .64, .54], slate = [.3, .32, .36], NOIR = [.05, .05, .06], OR = [.8, .64, .28];
-  const f = OSM.zones.find(z => z.k === 'fontaine'); let fx = 0, fz = 0; if (f) { const n = f.p.length / 2; for (let i = 0; i < n; i++) { fx += f.p[i * 2] / n; fz += f.p[i * 2 + 1] / n; } }
+  let fx = 0, fz = 0; { const fs = OSM.zones.filter(z => z.k === 'fontaine'); for (const f of fs) { const n = f.p.length / 2; for (let i = 0; i < n; i++) { fx += f.p[i * 2] / n / fs.length; fz += f.p[i * 2 + 1] / n / fs.length; } } }   // v0.2.1 : milieu des deux bassins = axe de l'allée centrale
   let E = null, best = -1e9; for (const e of edges) { const dx = fx - e.mx, dz = fz - e.mz, l = Math.hypot(dx, dz) || 1, sc = (e.nx * dx + e.nz * dz) / l * e.L; if (sc > best) { best = sc; E = e; } } if (!E) return;
   // l'arête retenue est l'avant-corps central (en saillie d'environ 0,9 m dans OSM) : repère recalé sur le nu des ailes
   const E0 = E; E = Object.assign({}, E0, { x1: E0.x1 - E0.nx * .9, z1: E0.z1 - E0.nz * .9, x2: E0.x2 - E0.nx * .9, z2: E0.z2 - E0.nz * .9 });
@@ -8692,7 +8692,7 @@ function occupe(B, x, z, r) { const O = occupation(B), i0 = Math.floor(x / 6), j
 // ---------------------------------------------------------------- façades sur rue, adresses, allocation
 // entrées relevées sur place (photos) : couleur, style, état
 const ENTREES_REELLES = [
-  { hn: '89', rue: 'Boulevard Jean Jaurès', x: 137.91, z: -31.07, couleur: [.30, .04, .18], style: 'pierre', entrouverte: true },   // porte pourpre entre Du Pareil au Même et Colombus
+  { hn: '89', rue: 'Boulevard Jean Jaurès', x: 137.91, z: -31.07, couleur: [.30, .04, .18], style: 'pierre', entrouverte: true, hall89: true },   // porte pourpre entre Du Pareil au Même et Colombus
 ];
 const LARGEUR_MAX = { banque: 9, poste: 12, hotel: 11, resto: 10, bar: 10, cafe: 9, bio: 11, epicerie: 9, fastfood: 11, pharmacie: 9, conservatoire: 10, pizza: 8, sushi: 7, vetements: 9, labo: 8, police: 8 };
 function allouerRezDeChaussee(B, L) {
@@ -8815,6 +8815,93 @@ function hall(at, bx, wD, hD, bois, F, e, prof) {
   (B.osm.portesExtra || (B.osm.portesExtra = [])).push({ mur: F.mur, t0: e.t - wD / 2 + .04, t1: e.t + wD / 2 - .04 });
   const c0 = at(0, 0); SALLES.push({ c: null, cx0: c0[0], cz0: c0[1], nx: F.nx, nz: F.nz, rx: F.nz, rz: -F.nx, hw: l / 2, D: prof, W: l + .12, off: 0, id, nom: 'Hall du ' + e.hn.split(' – ')[0] + (e.rue ? ' ' + e.rue : ''), v: 'hall', hall: true });
 }
+// ---------------------------------------------------------------- v0.2.1 · le 89 boulevard Jean Jaurès d'après les photos :
+// couloir d'entrée (mosaïque à filets noirs, crépi beige, boîtes aux lettres à gauche, placards électriques à droite, globe au plafond),
+// porte intérieure bordeaux vitrée à imposte trois carreaux, puis cage d'escalier (première marche en pierre, marches en bois sombre,
+// barreaux de fer, main courante bois, porte sur cour à trois carreaux). Repère local : s vers la droite en entrant, p = profondeur depuis la façade.
+// Emprise réelle de l'immeuble : 7,8 m de profondeur → couloir p 0–4,4 (s ±0,75) ; cage p 4,4–7,75 (s −1,45 à 1,42).
+function hall89(at, bx, wD, hD, F, e, R) {
+  const B = hall.B, T = hall.T, Y = Y_TROTTOIR, { nx, nz, rx, rz } = R, yaw = Math.atan2(nx, nz);
+  const PC = 4.4, PF = 7.75, SL = -1.45, SR = 1.42, HCo = 3.0, HH = 5.3, RI = .175, G = .24, PS = 6.85;
+  const CREPI = [.8, .75, .66], BLANC = [.9, .88, .83], ROUGE = [.3, .07, .06], BOISM = [.3, .12, .08], RAMPE = [.58, .38, .2], NOIR = [.06, .06, .07], GRIS = [.5, .52, .54], CREME = [.9, .86, .7];
+  const P = (s, p) => at(s, -p), box = (s, p, y, w, h, dp, col, mat = 16) => bx(s, -p, Y + y, w, h, dp, col, mat);
+  // --- textures
+  const mosa = T.make(256, 256, g => { const c = ['#d8cdb4', '#cfc3a8', '#e2d9c4', '#c9bb9c', '#b89f7c', '#a8875f']; g.fillStyle = '#8f8674'; g.fillRect(0, 0, 256, 256); for (let i = 0; i < 16; i++) for (let j = 0; j < 16; j++) { const h = Math.abs(Math.sin(i * 12.9898 + j * 78.233) * 43758.5453) % 1; g.fillStyle = c[h < .78 ? Math.floor(h * 5.1) % 4 : 4 + Math.floor(h * 97) % 2]; g.fillRect(i * 16 + 1, j * 16 + 1, 14, 14); } }, { rough: .35 });
+  const crepi = T.make(256, 256, g => { g.fillStyle = '#cdc2ac'; g.fillRect(0, 0, 256, 256); for (let k = 0; k < 900; k++) { const h = Math.abs(Math.sin(k * 91.7) * 43758.5453) % 1, h2 = Math.abs(Math.sin(k * 37.3 + 2) * 24634.6345) % 1, x = h * 256, y = h2 * 256, L = 6 + (k % 7) * 3; g.strokeStyle = k % 3 ? 'rgba(120,108,88,.35)' : 'rgba(240,232,214,.45)'; g.lineWidth = 1 + k % 2; g.beginPath(); g.moveTo(x, y); g.lineTo(x + (k % 5 - 2) * .6, y + L); g.stroke(); } }, { rough: .9 });
+  const clair = T.make(64, 64, g => { g.clearRect(0, 0, 64, 64); g.fillStyle = 'rgba(225,238,248,1)'; g.fillRect(8, 0, 3, 64); }, { alpha: true, noCast: true });
+  const danger = T.make(64, 64, g => { g.clearRect(0, 0, 64, 64); g.fillStyle = '#f2c81e'; g.beginPath(); g.moveTo(32, 4); g.lineTo(60, 58); g.lineTo(4, 58); g.closePath(); g.fill(); g.strokeStyle = '#111'; g.lineWidth = 4; g.stroke(); g.beginPath(); g.moveTo(36, 20); g.lineTo(27, 38); g.lineTo(35, 38); g.lineTo(29, 52); g.stroke(); }, { alpha: true, noCast: true });
+  const fumer = T.make(96, 96, g => { g.fillStyle = '#fff'; g.fillRect(0, 0, 96, 96); g.fillStyle = '#222'; g.fillRect(26, 44, 40, 8); g.strokeStyle = '#d2232a'; g.lineWidth = 9; g.beginPath(); g.arc(48, 48, 34, 0, 7); g.moveTo(24, 24); g.lineTo(72, 72); g.stroke(); }, {});
+  // quad texturé vu du côté où (P0→P1) × haut pointe vers le spectateur ; sol : même ordre que les autres halls
+  const mur = (tex, sA, pA, sB, pB, y0, y1) => { const a = P(sA, pA), b = P(sB, pB), L = Math.hypot(sB - sA, pB - pA); B.tquad(tex, [[a[0], Y + y0, a[1]], [b[0], Y + y0, b[1]], [b[0], Y + y1, b[1]], [a[0], Y + y1, a[1]]], [0, 0, L / 1.3, (y1 - y0) / 1.3]); };
+  const sol = (s0, s1, p0, p1) => { const q = [P(s0, p0), P(s1, p0), P(s1, p1), P(s0, p1)]; B.tquad(mosa, q.map(v => [v[0], Y + .006, v[1]]), [0, 0, (s1 - s0) / .5, (p1 - p0) / .5]); };
+  const globe = (s, p, y, room, i = 4, r = 5) => { const [x, z] = P(s, p); B.cyl(x, Y + y - .02, z, .11, .04, [.85, .85, .82], 22); B.sphere(x, Y + y - .12, z, .15, .11, .15, [1, .96, .86], 8); B.light(x, Y + Math.min(y - .35, 2.7), z, { c: [1, .9, .72], i, r, room }); };
+  // ================= couloir
+  sol(-.75, .75, .02, PC); sol(SL, SR, PC, PF);
+  for (const sd of [-1, 1]) { box(sd * .81, PC / 2, HCo / 2, .12, HCo, PC, CREPI); box(sd * .68, PC / 2, .013, .14, .014, PC, [.42, .36, .3], 12); box(sd * .55, PC / 2, .014, .035, .014, PC - .5, NOIR, 12); box(sd * .745, PC / 2, .05, .02, .09, PC, [.36, .2, .16]); }   // murs, bordure sombre, filet noir, plinthe
+  for (const p of [.3, PC - .3]) box(0, p, .014, 1.13, .014, .035, NOIR, 12);
+  mur(crepi, -.748, .05, -.748, PC, .1, HCo); mur(crepi, .748, PC, .748, .05, .1, HCo);
+  box(0, PC / 2, HCo + .05, 1.74, .1, PC + .1, [.94, .93, .9], 17); box(0, .06, (hD + HCo) / 2 + .02, 1.5, HCo - hD, .1, CREPI);   // plafond, linteau intérieur
+  globe(0, 2.1, HCo, 'hall:89a', 4, 5);
+  // boîtes aux lettres (mur de gauche) : caisson gris, deux rangées de portillons crème
+  { const p0 = 2.55, n = 4, w = .3; box(-.75 + .11, p0 + n * w / 2, 1.5, .22, .78, n * w + .06, GRIS, 22);
+    for (let r = 0; r < 2; r++) for (let k = 0; k < n; k++) { box(-.75 + .225, p0 + (k + .5) * w, 1.31 + r * .37, .012, .33, w - .03, CREME, 16); box(-.75 + .235, p0 + (k + .5) * w, 1.42 + r * .37, .006, .035, .1, [.7, .72, .75], 22); box(-.75 + .237, p0 + (k + .5) * w + .08, 1.27 + r * .37, .01, .03, .03, [.8, .8, .8], 22); }
+    const [x, z] = P(-.64, p0 + n * w / 2); solideOriente(B, x, z, .22, n * w, yaw, .9, 1.95);
+    box(-.742, PC - .32, 1.95, .008, .22, .22, [.95, .95, .95]); { const a = P(-.736, PC - .43), b = P(-.736, PC - .21); B.tquad(fumer, [[a[0], Y + 1.85, a[1]], [b[0], Y + 1.85, b[1]], [b[0], Y + 2.05, b[1]], [a[0], Y + 2.05, a[1]]]); }
+    box(-.735, PC - .14, 1.35, .02, .3, .12, [.5, .46, .42], 22); }   // interphone près de la porte intérieure
+  // placards électriques (mur de droite) : cadres moulurés peints, pictogramme, interrupteur et minuterie
+  { box(.725, 2.5, 1.85, .05, 1.25, 1.0, CREPI); box(.7, 2.5, 1.85, .03, 1.05, .8, [.76, .71, .62]); for (const dp of [-.2, .2]) box(.688, 2.5 + dp, 1.85, .02, .9, .32, CREPI); box(.72, 2.2, 2.75, .04, .5, .2, CREPI);
+    const a = P(.672, 2.78), b = P(.672, 2.62); B.tquad(danger, [[a[0], Y + 2.0, a[1]], [b[0], Y + 2.0, b[1]], [b[0], Y + 2.16, b[1]], [a[0], Y + 2.16, a[1]]]);
+    box(.735, 2.95, 1.12, .02, .13, .13, [.95, .95, .93]); box(.735, 2.95, .94, .02, .13, .13, [.95, .95, .93]); box(.722, 2.95, .94, .02, .07, .07, [.85, .85, .83]); }
+  box(0, .6, .012, .9, .012, .6, [.3, .2, .15], 13);   // paillasson
+  // ================= porte intérieure bordeaux (vantail vitré ouvrant de 0,9 m, parties fixes, imposte à trois carreaux)
+  for (const sd of [-1, 1]) box(sd * .6, PC, 1.075, .3, 2.15, .07, ROUGE);
+  box(0, PC, 2.2, 1.5, .1, .08, ROUGE); box(0, PC, 2.72, 1.5, .08, .08, ROUGE); for (const k of [-.75, -.25, .25, .75]) box(k * .97, PC, 2.46, .05, .44, .07, ROUGE);
+  for (const k of [-.5, 0, .5]) box(k, PC, 2.46, .44, .42, .012, [.2, .24, .28], 2);
+  box(0, PC, (2.76 + HCo) / 2, 1.5, HCo - 2.76, .1, CREPI);
+  (B.osm.portesImmeubles || (B.osm.portesImmeubles = [])).push({ hinge: at(.43, -PC), centre: at(0, -PC), nx, nz, rx, rz, lw: .86, H: 2.13, bois: ROUGE, ouvrable: true, ouv0: .25, nom: "cage d'escalier du 89", ferr: clair });
+  // ================= cage d'escalier
+  const mh = (HH) / 2;
+  box(SL - .06, (PC + PF) / 2, mh, .12, HH, PF - PC + .24, BLANC); box(SR + .06, (PC + PF) / 2, mh, .12, HH, PF - PC + .24, BLANC); box((SL + SR) / 2, PF + .06, mh, SR - SL, HH, .12, BLANC);   // gauche, droite, fond
+  box((SL - .81) / 2 - .03, PC - .06, mh, -.75 - SL + .06, HH, .12, BLANC); box((SR + .81) / 2 + .03, PC - .06, mh, SR - .75 + .06, HH, .12, BLANC); box(0, PC - .06, (HCo + .1 + HH) / 2, 1.74, HH - HCo - .1, .12, BLANC);   // mur côté couloir
+  box((SL + SR) / 2, (PC + PF) / 2, HH + .05, SR - SL + .24, .1, PF - PC + .24, [.95, .94, .91], 17);
+  mur(crepi, SL + .002, PC, SL + .002, PF, .1, 2.6); mur(crepi, SL, PF - .002, -.2, PF - .002, .1, 2.6);
+  for (const [s0, s1] of [[SL, -.75], [.75, .52]]) box((s0 + s1) / 2, PC + .01, .05, Math.abs(s1 - s0), .09, .02, [.36, .2, .16]); box(SL + .01, (PC + PF) / 2, .05, .02, .09, PF - PC, [.36, .2, .16]);
+  globe(-.5, 5.7, HH, 'hall:89b', 6, 8); { const [x, z] = P(-.4, 6.0); B.light(x, Y + 4.4, z, { c: [1, .92, .78], i: 4, r: 6, room: 'hall:89b' }); }
+  // porte sur cour (fermée à clé) : bordeaux, trois carreaux qui laissent entrer le jour
+  { const sc = -1.0; box(sc, PF - .03, 1.06, .86, 2.12, .05, ROUGE); for (const sd of [-1, 1]) box(sc + sd * .47, PF - .02, 1.1, .08, 2.2, .08, ROUGE); box(sc, PF - .02, 2.2, 1.02, .08, .08, ROUGE);
+    for (let k = 0; k < 3; k++) box(sc, PF - .058, 1.08 + k * .36, .5, .31, .012, [.72, .82, .92], 8); box(sc + .34, PF - .07, 1.02, .05, .16, .04, [.75, .75, .72], 22);
+    const [x, z] = P(sc, PF - .5); B.light(x, Y + 1.5, z, { c: [.75, .85, 1], i: 2, r: 3, room: 'hall:89b' }); box(sc, PF - .55, .012, .8, .012, .5, [.2, .16, .13], 13); }
+  // --- escalier : volée 1 le long du mur du fond (vers la droite), deux marches d'angle, volée 2 le long du mur de droite (vers la rue)
+  const marche = (s0, s1, p0, p1, k, pierre) => { const h = k * RI, sm = (s0 + s1) / 2, pm = (p0 + p1) / 2; if (pierre) { box(sm, pm, h / 2, s1 - s0, h, p1 - p0, [.8, .77, .68], 17); const [x, z] = P(s0, p0 + .12); B.cyl(x, Y + h / 2, z, .14, h, [.8, .77, .68], 17); return; }
+    box(sm, pm, (h - .04) / 2, s1 - s0, h - .04, p1 - p0, BLANC); box(sm, pm, h - .02, s1 - s0 + .03, .04, p1 - p0 + .03, BOISM, 13); };
+  marche(-.7, -.21, 6.7, PF, 1, true);
+  for (let i = 1; i < 4; i++) marche(-.21 + (i - 1) * G, -.21 + i * G, PS, PF, i + 1);
+  marche(.51, SR, 7.3, PF, 5); marche(.52, SR, PS, 7.3, 6);
+  const NV = 10; for (let j = 0; j < NV; j++) marche(.52, SR, PS - (j + 1) * G, PS - j * G, 7 + j);
+  // barreaux de fer, poteaux, mains courantes
+  const rail = (a, b, r, col, mat) => { const p0 = P(a[0], a[1]), p1 = P(b[0], b[1]); poutre(B, [p0[0], Y + a[2], p0[1]], [p1[0], Y + b[2], p1[1]], r, col, mat); };
+  const bar = (s, p, y) => rail([s, p, y], [s, p, y + .92], .011, NOIR, 22);
+  rail([-.21, PS + .04, RI], [-.21, PS + .04, RI + 1.02], .03, NOIR, 22); { const [x, z] = P(-.21, PS + .04); B.sphere(x, Y + RI + 1.05, z, .045, .045, .045, [.75, .6, .3], 22); }
+  for (let i = 1; i < 4; i++) for (const f of [.3, .8]) bar(-.21 + (i - 1 + f) * G, PS + .04, (i + 1) * RI);
+  rail([.53, PS + .02, 5 * RI], [.53, PS + .02, 7 * RI + 1.0], .025, NOIR, 22);
+  for (let j = 0; j < NV; j++) for (const f of [.3, .8]) bar(.55, PS - (j + f) * G, (7 + j) * RI);
+  rail([-.21, PS + .04, RI + .98], [.53, PS + .04, 5 * RI + .95], .028, RAMPE, 13); rail([.55, PS, 7 * RI + .95], [.55, PS - NV * G + .05, (6 + NV) * RI + .95], .028, RAMPE, 13);
+  rail([-.6, PF - .06, RI + .85], [.5, PF - .06, 5 * RI + .9], .022, ROUGE, 13); rail([SR - .06, PS, 7 * RI + .9], [SR - .06, PS - NV * G + .1, (6 + NV) * RI + .9], .022, ROUGE, 13);   // mains courantes murales
+  // palier haut : porte du 1er étage (fermée)
+  { const yT = (6 + NV) * RI; box((.52 + SR) / 2, PC + .03, yT + 1.0, .8, 2.0, .05, ROUGE); box((.52 + SR) / 2 + .3, PC + .07, yT + 1.0, .04, .12, .04, [.78, .62, .3], 22); }
+  // hauteur du sol sur les marches
+  (B.osm.marches = B.osm.marches || []).unshift((x, z) => { const dx = x - R.cx, dz = z - R.cz, s = dx * rx + dz * rz, p = -(dx * nx + dz * nz); if (p < PC || p > PF || s < -.7 || s > SR) return null;
+    if (s >= .51) { if (p >= PS) return Y + (p > 7.3 ? 5 : 6) * RI; return Y + (7 + Math.min(NV - 1, Math.floor((PS - p) / G))) * RI; }
+    if (p < PS) return s < -.21 && p >= 6.7 ? Y + RI : null; return Y + (s < -.21 ? 1 : 2 + Math.min(2, Math.floor((s + .21) / G))) * RI; });
+  // --- murs (collisions), percement de la façade, pièces
+  const seg = (sA, pA, sB, pB) => { const a = P(sA, pA), b = P(sB, pB); return [a[0], a[1], b[0], b[1]]; };
+  (B.osm.mursHalls || (B.osm.mursHalls = [])).push(seg(-.75, .05, -.75, PC), seg(.75, .05, .75, PC), seg(SL, PC, -.45, PC), seg(.45, PC, SR, PC), seg(SL, PC, SL, PF), seg(SL, PF, SR, PF), seg(SR, PF, SR, PC), seg(-.21, PS, .52, PS), seg(.52, PS, .52, PC));
+  if (F.rec) (B.osm.trousRdc || (B.osm.trousRdc = [])).push({ rec: F.rec, a: e.t - wD / 2 - .02, b: e.t + wD / 2 + .02, y: hD });
+  (B.osm.portesExtra || (B.osm.portesExtra = [])).push({ mur: F.mur, t0: e.t - wD / 2 + .04, t1: e.t + wD / 2 - .04 });
+  const c0 = at(0, 0), c1 = at((SL + SR) / 2, -PC);
+  SALLES.push({ c: null, cx0: c0[0], cz0: c0[1], nx, nz, rx, rz, hw: .75, D: PC, W: 1.62, off: 0, id: 'hall:89a', nom: 'Couloir du 89 Boulevard Jean Jaurès', v: 'hall', hall: true },
+    { c: null, cx0: c1[0], cz0: c1[1], nx, nz, rx, rz, hw: (SR - SL) / 2, D: PF - PC, W: SR - SL + .12, off: 0, id: 'hall:89b', nom: "Cage d'escalier du 89 Boulevard Jean Jaurès", v: 'hall', hall: true });
+}
 // profondeur disponible derrière une entrée (même immeuble ou voisin, jamais dans une boutique ni un autre hall)
 function profondeurHall(at, l) { for (let D = 3.2; D >= 1.6; D -= .2) { let ok = true; for (const s of [-l / 2 + .05, 0, l / 2 - .05]) for (const k of [.2, .5, .8, 1]) { const [x, z] = at(s, -D * k); const b = batDe(x, z); if (b < 0 || salleEn(x, z, .1)) ok = false; } if (ok) return D; } return 0; }
 // ---------------------------------------------------------------- portes d'immeuble, avec leur numéro
@@ -8843,8 +8930,8 @@ function construireEntrees(B, T) {
     if (st === 'pierre') { bx(0, .12, haut - .13, .34, .38, .1, [.88, .84, .76], 17); bx(0, .12, haut + .02, wD + .7, .06, .2, PIERRE, 17); }   // clef d'arc, corniche
     bx(0, .12, Y + .05, wD + .3, .1, .3, [.6, .6, .58], 17);   // seuil en pierre
     // vantaux
-    { const nv = st === 'pierre' ? 2 : 1, lv = wD / nv, l = wD + .5, prof = profondeurHall(at, l);
-      if (prof) hall(at, bx, wD, hD, bois, F, e, prof);
+    { const nv = st === 'pierre' ? 2 : 1, lv = wD / nv, l = wD + .5, prof = sp.hall89 ? 4.4 : profondeurHall(at, l);
+      if (sp.hall89) hall89(at, bx, wD, hD, F, e, { nx, nz, rx, rz, cx, cz }); else if (prof) hall(at, bx, wD, hD, bois, F, e, prof);
       for (let k = 0; k < nv - 1; k++) { const s = -wD / 2 + lv * (k + .5); bx(s, .03, (Y + .1 + hD) / 2, lv - .02, hD - Y - .1, .06, bois, 16);   // vantail fixe
         bx(s, .065, Y + .65, lv - .22, .9, .02, bois.map(v => v * .8), 16); bx(s, .065, Y + .65, lv - .3, .8, .025, bois, 16); quad(ferr, s, .07, Y + 1.3, lv - .24, hD - Y - 1.5); bx(s, .062, Y + 1.2 + (hD - Y - 1.5) / 2, lv - .22, hD - Y - 1.4, .01, [.12, .14, .16], 2); }
       if (!prof) bx(0, -.04, (Y + hD) / 2, wD, hD - Y, .04, [.08, .08, .09], 16);   // pas de hall : fond sombre derrière la porte (fermée à clé)
@@ -9830,7 +9917,7 @@ function construireReseauPieton(B) {
 // 05 · application : démarrage, marche à hauteur d'enfant, vue aérienne, heure, météo,
 //      commandes clavier / tactile / manette PlayStation, son (méthode SPATIALFSMVOICESONG), PerfGuard
 // =====================================================================================
-const ECOLE = { version: '0.2.0' };
+const ECOLE = { version: '0.2.1' };
 async function lancerEcole() {
   const canvas = document.getElementById('c'), test = /[?&]test/.test(location.search);
   if (!canvas) throw new Error('canvas #c introuvable');
@@ -10112,5 +10199,13 @@ const audio = (() => {
   if (bouton) bouton.onclick = () => { audio.debloquer(); if (accueil) accueil.style.display = 'none'; };
   if (/[?&]test/.test(location.search) && accueil) accueil.style.display = 'none';
 </script>
+<!-- NOTE-INTERNE (pour Claude) · École Jules Ferry A v0.2.1
+ Repères : OSM = ligne « const OSM » (coordonnées x,z en mètres) · buildMairieDecor (hôtel de ville) · section 15 = intérieurs des commerces (SALLES, salleBoutique)
+ · section 17 = rez-de-chaussée : ENTREES_REELLES, allouerRezDeChaussee, hall() générique, hall89() sur mesure, construireEntrees · section 18 = portes ouvrables (portesCommerces)
+ · sol du joueur = sol(x,z) qui interroge B.osm.marches (fonctions (x,z) → hauteur ou null) ; collisions = B.solids (boîtes avec y) + B.osm.walls / mursHalls (segments, toute hauteur).
+ v0.2.1 : (1) mairie : l'avant-corps se choisissait d'après UN seul bassin → décor posé sur l'aile ouest ; maintenant milieu des deux bassins = avant-corps central, dans l'axe de l'allée.
+          (2) 89 bd Jean Jaurès : hall89() — couloir p 0–4,4 m, porte intérieure ouvrable, cage d'escalier p 4,4–7,75 m (16 marches praticables), porte sur cour et porte du 1er fermées.
+              Façade du 89 : origine (136.02, −28.41), travée 4 de la façade x1=123.19 z1=−32.64 ; l'immeuble ne fait que 7,8 m de profondeur, cour derrière ; Du Pareil au Même à s < −1,6, mitoyen à s = 1,48.
+ Test sans écran : très lent (≈ 7 min avec SwiftShader), ECOLE.pret n'arrive pas dans ce délai. -->
 </body>
 </html>
